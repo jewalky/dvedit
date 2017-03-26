@@ -107,8 +107,7 @@ Parser.prototype.parse = function(doc) {
         this.connectModes();
         //
         doc = doc.replace(/\r\n/g, '\n');
-        if (doc[doc.length-1] != '\n')
-            doc += '\n';
+        doc += '\u200b'; // magic
         this.Lexer.parse(doc);
         this.Handler._finalize();
         return this.Handler.output;
@@ -267,9 +266,13 @@ function Parser_Handler() {
                 //var newS = '<p '+this._getDVAttrs(pos, pos, pos, pos+outS[i].length, 'paragraph')+'>' + outS[i] + '</p>';
                 //var newS = '<p>' + outS[i] + '</p>';
                 //console.log('for item "%s" attrs = %s', outS[i], JSON.stringify(this._getDVAttrsFromHTML(outS[i])));
-                if (!outS[i].length)
-                    continue; // this is a special case, the final newline.
                 var inAttrs = this._getDVAttrsFromHTML(outS[i]);
+                console.log(outS);
+                if (!outS[i].length)
+                {
+                    inAttrs.start = inAttrs.cstart = pos;
+                    inAttrs.end = inAttrs.cend = pos;
+                }
                 var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
                 output += newS;
                 pos += outS[i].length+1;
@@ -288,8 +291,9 @@ function Parser_Handler() {
                 // </p> is the newline
                 // everything in between is content
                 //var inAttrs = this._getDVAttrsFromHTML(outS[i]);
-                var isN = (i != outS.length-1);
-                var newS = '<span '+this._getDVAttrs(pos, pos+outS[i].length+(isN?1:0), pos, pos+outS[i].length, 'base')+'>'+outS[i]+'</span>';
+                var isN = (i != outS.length-1) && (outS.length > 1);
+                var s = outS[i].replace(/\u200b/g, '');
+                var newS = '<span '+this._getDVAttrs(pos, pos+outS[i].length+(isN?1:0), pos, pos+outS[i].length, 'base')+'>'+s+'</span>';
                 output += newS+(isN?'\n':'');
                 pos += outS[i].length+(isN?1:0);
             }

@@ -20,22 +20,12 @@ DVEdit = {
         var sStart = DVEdit.SourceControl.selectionStart;
         var sEnd = DVEdit.SourceControl.selectionEnd;
         var newSource = DVEdit.SourceControl.value || '';
-        if (newSource[newSource.length-1] != '\n')
-            newSource += '\n';
         DVEdit.SourceControl.value = newSource;
         DVEdit.SourceControl.selectionStart = sStart;
         DVEdit.SourceControl.selectionEnd = sEnd;
         
         var parsed = Parse(DVEdit.SourceControl.value);
         DVEdit.Control.innerHTML = parsed;
-        // fix empty paragraphs.
-        /*var xSearch = document.evaluate(".//*[@dv-type='base' and ../@dv-type='paragraph'][not(*)][not(normalize-space())]", DVEdit.Control, null, XPathResult.ANY_TYPE, null);
-        var xNode = void 0;
-        var xNodes = [];
-        while (xNode = xSearch.iterateNext())
-            xNodes.push(xNode);
-        for (var i = 0; i < xNodes.length; i++)
-            xNodes[i].innerHTML = '&nbsp;';*/
     },
     
     visualKeyPress: function(e)
@@ -146,11 +136,22 @@ DVEdit = {
     insertSource: function(ch)
     {
         // insert character.
-        var selection = window.getSelection();
-        // find first element with dv-type.
-        var dvSel = DVEdit.getFirstDVParent(selection.focusNode);
-        var dvData = Parser_GetDVAttrsFromNode(dvSel);
-        var cursorPosition = selection.focusOffset+dvData.cstart;
+        // extremely special case.
+        if (DVEdit.SourceControl.value.length)
+        {
+            var selection = window.getSelection();
+            // find first element with dv-type.
+            var dvSel = DVEdit.getFirstDVParent(selection.focusNode);
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = selection.focusOffset+dvData.cstart;
+        }
+        else
+        {
+            var dvSel = DVEdit.Control.querySelector('p');
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = 0;
+        }
+        
         // insert character in the source code.
         var currentSource = DVEdit.SourceControl.value;
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);

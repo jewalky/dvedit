@@ -57,7 +57,7 @@
     min-height: 240px;
 }
 
-.dv-visualframe span::before
+.dv-visualframe span::before, .dv-visualframe span::after
 {
     content: "​"
 }
