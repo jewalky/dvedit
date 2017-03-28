@@ -267,7 +267,6 @@ function Parser_Handler() {
                 //var newS = '<p>' + outS[i] + '</p>';
                 //console.log('for item "%s" attrs = %s', outS[i], JSON.stringify(this._getDVAttrsFromHTML(outS[i])));
                 var inAttrs = this._getDVAttrsFromHTML(outS[i]);
-                console.log(outS);
                 if (!outS[i].length)
                 {
                     inAttrs.start = inAttrs.cstart = pos;

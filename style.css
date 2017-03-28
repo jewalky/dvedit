@@ -57,11 +57,6 @@
     min-height: 240px;
 }
 
-.dv-visualframe span::before
-{
-    content: "​"
-}
-
 .dv-visualframe span
 {
     white-space: pre-wrap;

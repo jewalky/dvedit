@@ -38,8 +38,7 @@ DVEdit = {
             xNode = xNodes[i];
             if (xNode.tagName === 'SPAN' && !xNode.lastChild)
             {
-                //console.log(xNode);
-                // insert empty text
+                // insert empty text. this is only visual!
                 var textNode = document.createTextNode('\u200b');
                 xNode.appendChild(textNode);
             }
@@ -76,6 +75,10 @@ DVEdit = {
             // do nothing for now
         }
         else if (e.keyCode == 46) // delete
+        {
+            // do nothing for now
+        }
+        else if (e.ctrlKey) // ctrl+something
         {
             // do nothing for now
         }
@@ -185,7 +188,6 @@ DVEdit = {
         if (!dvSel) return;
         
         dvData = Parser_GetDVAttrsFromNode(dvSel);
-        console.log(dvData, dvSel);
         if (dvSel.firstChild)
         {
             range.setStart(dvSel.firstChild, cursorPosition-dvData.cstart);
@@ -242,7 +244,6 @@ DVEdit = {
         // work around firefox bug (or normal behavior?)
         form_main.innerHTML += '<input type="submit" value="Click me" />';
         form_main.style.display = 'none';
-        console.log(form_main.childNodes);
         document.body.appendChild(form_main);
         form_main.submit();
     },
