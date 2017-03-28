@@ -6,10 +6,10 @@ DVEdit = {
         this.Control = document.querySelector('.dv-visualframe');
         
         //
-        this.SourceControl.addEventListener('input', this.sourceInputChanged);
-        this.Control.addEventListener('keypress', this.visualKeyPress);
-        this.Control.addEventListener('keydown', this.visualKeyDown);
-        this.Control.addEventListener('keyup', this.visualKeyUp);
+        this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged(e);});
+        this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
+        this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
+        this.Control.addEventListener('keyup', function(e){return DVedit.visualKeyUp(e);});
         
         //
         this.sourceInputChanged();
@@ -17,18 +17,18 @@ DVEdit = {
     
     sourceInputChanged: function()
     {
-        var sStart = DVEdit.SourceControl.selectionStart;
-        var sEnd = DVEdit.SourceControl.selectionEnd;
-        var newSource = DVEdit.SourceControl.value || '';
-        DVEdit.SourceControl.value = newSource;
-        DVEdit.SourceControl.selectionStart = sStart;
-        DVEdit.SourceControl.selectionEnd = sEnd;
+        var sStart = this.SourceControl.selectionStart;
+        var sEnd = this.SourceControl.selectionEnd;
+        var newSource = this.SourceControl.value || '';
+        this.SourceControl.value = newSource;
+        this.SourceControl.selectionStart = sStart;
+        this.SourceControl.selectionEnd = sEnd;
         
-        var parsed = Parse(DVEdit.SourceControl.value);
-        DVEdit.Control.innerHTML = parsed;
+        var parsed = Parse(this.SourceControl.value);
+        this.Control.innerHTML = parsed;
         
         // fix some things for editing.
-        var xSearch = document.evaluate('.//*', DVEdit.Control, null, XPathResult.ANY_TYPE, null);
+        var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
         var xNode = void 0;
         var xNodes = [];
         while (xNode = xSearch.iterateNext())
@@ -49,7 +49,7 @@ DVEdit = {
     visualKeyPress: function(e)
     {
         var ch = String.fromCharCode(e.which);
-        DVEdit.insertSource(ch);
+        this.insertSource(ch);
         
         //
         e.preventDefault();
@@ -63,11 +63,11 @@ DVEdit = {
         {
             if (e.shiftKey)
             {
-                DVEdit.insertSource('\\\\ ');
+                this.insertSource('\\\\ ');
             }
             else 
             {
-                DVEdit.insertSource('\n');
+                this.insertSource('\n');
             }
         }
         else if (e.keyCode === 8) // backspace
@@ -159,32 +159,32 @@ DVEdit = {
     {
         // insert character.
         // extremely special case.
-        if (DVEdit.SourceControl.value.length)
+        if (this.SourceControl.value.length)
         {
             var selection = window.getSelection();
             // find first element with dv-type.
-            var dvSel = DVEdit.getFirstDVParent(selection.focusNode);
+            var dvSel = this.getFirstDVParent(selection.focusNode);
             var dvData = Parser_GetDVAttrsFromNode(dvSel);
             var cursorPosition = selection.focusOffset+dvData.cstart;
         }
         else
         {
-            var dvSel = DVEdit.Control.querySelector('p');
+            var dvSel = this.Control.querySelector('p');
             var dvData = Parser_GetDVAttrsFromNode(dvSel);
             var cursorPosition = 0;
         }
         
         // insert character in the source code.
-        var currentSource = DVEdit.SourceControl.value;
+        var currentSource = this.SourceControl.value;
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
-        DVEdit.SourceControl.value = currentSource;
-        DVEdit.sourceInputChanged();
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged();
         
         cursorPosition+=ch.length;
         
         selection = window.getSelection();
         var range = document.createRange();
-        dvSel = DVEdit.getDVNodeBySource(cursorPosition);
+        dvSel = this.getDVNodeBySource(cursorPosition);
         if (!dvSel) return;
         
         dvData = Parser_GetDVAttrsFromNode(dvSel);
