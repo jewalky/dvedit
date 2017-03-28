@@ -26,6 +26,25 @@ DVEdit = {
         
         var parsed = Parse(DVEdit.SourceControl.value);
         DVEdit.Control.innerHTML = parsed;
+        
+        // fix some things for editing.
+        var xSearch = document.evaluate('.//*', DVEdit.Control, null, XPathResult.ANY_TYPE, null);
+        var xNode = void 0;
+        var xNodes = [];
+        while (xNode = xSearch.iterateNext())
+            xNodes.push(xNode); // iterator will fail if the DOM changes. so first collect, then change.
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            xNode = xNodes[i];
+            if (xNode.tagName === 'SPAN' && !xNode.lastChild)
+            {
+                //console.log(xNode);
+                // insert empty text
+                var textNode = document.createTextNode('\u200b');
+                xNode.appendChild(textNode);
+            }
+        }
+
     },
     
     visualKeyPress: function(e)
