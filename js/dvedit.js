@@ -9,7 +9,7 @@ DVEdit = {
         this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged(e);});
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
-        this.Control.addEventListener('keyup', function(e){return DVedit.visualKeyUp(e);});
+        this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
         
         //
         this.sourceInputChanged();
@@ -72,11 +72,68 @@ DVEdit = {
         }
         else if (e.keyCode === 8) // backspace
         {
-            // do nothing for now
+            if (this.isMultiSelection())
+            {
+                // do nothing for now
+            }
+            else
+            {
+                // delete before selection.
+                var selection = window.getSelection();
+                if (selection.anchorOffset > 0 && selection.anchorNode.textContent != '\u200b')
+                {
+                    // delete one character before.
+                    // find first element with dv-type.
+                    var dvSel = this.getFirstDVParent(selection.focusNode);
+                    var dvData = Parser_GetDVAttrsFromNode(dvSel);
+                    var cursorPosition = selection.focusOffset+dvData.cstart;
+                    
+                    var currentSource = this.SourceControl.value;
+                    currentSource = currentSource.substr(0, cursorPosition-1)+currentSource.substr(cursorPosition);
+                    this.SourceControl.value = currentSource;
+                    this.sourceInputChanged();
+                    
+                    this.setCursorToSource(cursorPosition-1);
+                }
+                else
+                {
+                    // we need to merge the current node with the previous one.
+                    // this needs checking with the parser. might not be possible (e.g. if we're in a table)
+                }
+            }
         }
         else if (e.keyCode == 46) // delete
         {
-            // do nothing for now
+            if (this.isMultiSelection())
+            {
+                // do nothing for now
+            }
+            else
+            {
+                // delete after selection.
+                var selection = window.getSelection();
+                console.log(selection.anchorNode.textContent.length);
+                console.log(selection.anchorOffset);
+                if (selection.anchorOffset < selection.anchorNode.textContent.length && selection.anchorNode.textContent != '\u200b')
+                {
+                    // delete one character after.
+                    // find first element with dv-type.
+                    var dvSel = this.getFirstDVParent(selection.focusNode);
+                    var dvData = Parser_GetDVAttrsFromNode(dvSel);
+                    var cursorPosition = selection.focusOffset+dvData.cstart;
+                    
+                    var currentSource = this.SourceControl.value;
+                    currentSource = currentSource.substr(0, cursorPosition)+currentSource.substr(cursorPosition+1);
+                    this.SourceControl.value = currentSource;
+                    this.sourceInputChanged();
+                    
+                    this.setCursorToSource(cursorPosition);
+                }
+                else
+                {
+                    // merge with next. same rules as above, needs finishing syntax.js.
+                }
+            }
         }
         else if (e.ctrlKey) // ctrl+something
         {
@@ -93,6 +150,16 @@ DVEdit = {
     {
         //
         e.preventDefault();
+        return false;
+    },
+
+    isMultiSelection: function()
+    {
+        var selection = window.getSelection();
+        if (selection.anchorNode != selection.focusNode)
+            return true;
+        if (selection.anchorOffset != selection.focusOffset)
+            return true;
         return false;
     },
     
@@ -154,9 +221,34 @@ DVEdit = {
         return xOutNode;
     },
     
+    setCursorToSource: function(index)
+    {
+        var selection = window.getSelection();
+        var range = document.createRange();
+        var dvSel = this.getDVNodeBySource(index);
+        if (!dvSel) return;
+        
+        var dvData = Parser_GetDVAttrsFromNode(dvSel);
+        if (dvSel.firstChild)
+        {
+            range.setStart(dvSel.firstChild, index-dvData.cstart);
+            range.setEnd(dvSel.firstChild, index-dvData.cstart);
+        }
+        else
+        {
+            range.setStart(dvSel, 0);
+            range.setEnd(dvSel, 0);
+        }
+        selection.removeAllRanges();
+        selection.addRange(range);
+    },
+    
     // inserts character at the current cursor position.
     insertSource: function(ch)
     {
+        if (this.isMultiSelection())
+            return; // don't insert anything like this.
+        
         // insert character.
         // extremely special case.
         if (this.SourceControl.value.length)
@@ -182,24 +274,7 @@ DVEdit = {
         
         cursorPosition+=ch.length;
         
-        selection = window.getSelection();
-        var range = document.createRange();
-        dvSel = this.getDVNodeBySource(cursorPosition);
-        if (!dvSel) return;
-        
-        dvData = Parser_GetDVAttrsFromNode(dvSel);
-        if (dvSel.firstChild)
-        {
-            range.setStart(dvSel.firstChild, cursorPosition-dvData.cstart);
-            range.setEnd(dvSel.firstChild, cursorPosition-dvData.cstart);
-        }
-        else
-        {
-            range.setStart(dvSel, 0);
-            range.setEnd(dvSel, 0);
-        }
-        selection.removeAllRanges();
-        selection.addRange(range);
+        this.setCursorToSource(cursorPosition);
     },
     
     // static form send, to avoid using ajax all over.
