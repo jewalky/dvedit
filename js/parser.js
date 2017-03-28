@@ -189,16 +189,23 @@ function Parser_Mode_linebreak() {
 
 function Parser_GetDVAttrsFromNode(node) {
     var attrs = {};
-    if (node.getAttribute) {
-        attrs.start = node.getAttribute('dv-start');
-        attrs.end = node.getAttribute('dv-end');
-        attrs.cstart = node.getAttribute('dv-cstart');
-        attrs.cend = node.getAttribute('dv-cend');
-        if (attrs.start !== void 0) attrs.start *= 1;
-        if (attrs.end !== void 0) attrs.end *= 1;
-        if (attrs.cstart !== void 0) attrs.cstart *= 1;
-        if (attrs.cend !== void 0) attrs.cend *= 1;
-    }
+    if (!node || !node.getAttribute) return attrs;
+    
+    attrs.type = node.getAttribute('dv-type');
+    attrs.start = node.getAttribute('dv-start');
+    attrs.end = node.getAttribute('dv-end');
+    attrs.cstart = node.getAttribute('dv-cstart');
+    attrs.cend = node.getAttribute('dv-cend');
+    if (attrs.start !== null) attrs.start *= 1;
+    else attrs.start = void 0;
+    if (attrs.end !== null) attrs.end *= 1;
+    else attrs.end = void 0;
+    if (attrs.cstart !== null) attrs.cstart *= 1;
+    else attrs.cstart = void 0;
+    if (attrs.cend !== null) attrs.cend *= 1;
+    else attrs.cend = void 0;
+    if (attrs.type === null) attrs.type = void 0;
+
     return attrs;
 }
 

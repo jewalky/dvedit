@@ -56,6 +56,40 @@ DVEdit = {
         return false;
     },
     
+    removeSource: function(start, end)
+    {
+        if (this.isMultiSelection())
+            return; // don't insert anything like this.
+        
+        // insert character.
+        // extremely special case.
+        if (this.SourceControl.value.length)
+        {
+            var selection = window.getSelection();
+            // find first element with dv-type.
+            var dvSel = this.getFirstDVParent(selection.focusNode);
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = selection.focusOffset+dvData.cstart;
+        }
+        else
+        {
+            var dvSel = this.Control.querySelector('p');
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = 0;
+        }
+        
+        // insert character in the source code.
+        var currentSource = this.SourceControl.value;
+        currentSource = currentSource.substr(0, start)+currentSource.substr(end);
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged();
+        
+        if (cursorPosition >= start && cursorPosition < end)
+            this.setCursorToSource(start);
+        else if (cursorPosition >= end)
+            this.setCursorToSource(cursorPosition-(end-start));
+    },
+    
     visualKeyDown: function(e)
     {
         // enter key
@@ -99,6 +133,17 @@ DVEdit = {
                 {
                     // we need to merge the current node with the previous one.
                     // this needs checking with the parser. might not be possible (e.g. if we're in a table)
+                    // note: if we have a content-less element, we may safely delete it.
+                    if (selection.anchorNode.parentNode.previousSibling)
+                    {
+                        var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.previousSibling);
+                        console.log(dvData);
+                        if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
+                        {
+                            //
+                            this.removeSource(dvData.start, dvData.end);
+                        }
+                    }
                 }
             }
         }
@@ -132,6 +177,17 @@ DVEdit = {
                 else
                 {
                     // merge with next. same rules as above, needs finishing syntax.js.
+                    // note: if we have a content-less element, we may safely delete it.
+                    if (selection.anchorNode.parentNode.nextSibling)
+                    {
+                        var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.nextSibling);
+                        console.log(dvData);
+                        if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
+                        {
+                            //
+                            this.removeSource(dvData.start, dvData.end);
+                        }
+                    }
                 }
             }
         }
