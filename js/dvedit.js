@@ -6,13 +6,153 @@ DVEdit = {
         this.Control = document.querySelector('.dv-visualframe');
         
         //
-        this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged(e);});
+        this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged();});
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
+        document.addEventListener('selectionchange', function(e) { return DVEdit.selectionChanged(e); });
         
         //
         this.sourceInputChanged();
+        this.setHandleSelection(true);
+    },
+    
+    handleSelection: false,
+    setHandleSelection: function(handle)
+    {
+        this.handleSelection = handle;
+    },
+    
+    lastOffset: -1,
+    lastNode: void 0,
+    selectionChanged: function(e)
+    {
+        if (!this.handleSelection)
+            return;
+        
+        //return; // todo fix
+        
+        function checkParentDVType(node, type)
+        {
+            var p = node;
+            while (p)
+            {
+                if (p.getAttribute && p.getAttribute('dv-type')===type)
+                    return true;
+                p = p.parentNode;
+            }
+            
+            return false;
+        }
+        
+        function findPrevTextSibling(node)
+        {
+            function findLastTextNode(node)
+            {
+                if (node.nodeType === Node.TEXT_NODE && checkParentDVType(node, 'base'))
+                    return node;
+                var s = node.lastChild;
+                while (s)
+                {
+                    var o = findLastTextNode(s);
+                    if (o) return o;
+                    s = s.previousSibling;
+                }
+                return void 0;
+            }
+            
+            var p = node;
+            while (p && p != DVEdit.Control)
+            {
+                var s = p.previousSibling;
+                while (s)
+                {
+                    var o = findLastTextNode(s);
+                    if (o) return o;
+                    s = s.previousSibling;
+                }
+                
+                p = p.parentNode;
+            }
+            
+            return void 0;
+        }
+        
+        function findNextTextSibling(node)
+        {
+            function findFirstTextNode(node)
+            {
+                if (node.nodeType === Node.TEXT_NODE && checkParentDVType(node, 'base'))
+                    return node;
+                var s = node.firstChild;
+                while (s)
+                {
+                    var o = findFirstTextNode(s);
+                    if (o) return o;
+                    s = s.nextSibling;
+                }
+                return void 0;
+            }
+
+            
+            var p = node;
+            while (p && p != DVEdit.Control)
+            {
+                var s = p.nextSibling;
+                while (s)
+                {
+                    var o = findFirstTextNode(s);
+                    if (o) return o;
+                    s = s.nextSibling;
+                }
+                
+                p = p.parentNode;
+            }
+            
+            return void 0;
+        }
+        
+        var selection = this.getSelection();
+        var selectionNull = (selection.focusNode.nodeValue === '\u200b');
+        
+        var offset = selection.focusOffset;
+        
+        if (selectionNull)
+        {
+            if (offset === 1)
+            {
+                if (this.lastNode === selection.focusNode && this.lastOffset === 0)
+                {
+                    this.setHandleSelection(false);
+                    var nextSibling = findNextTextSibling(selection.focusNode);
+                    if (nextSibling)
+                    {
+                        var deflated = selection.focusNode === selection.anchorNode && selection.focusOffset === selection.anchorOffset;
+                        selection.focusNode = nextSibling;
+                        selection.focusOffset = 0;
+                        if (deflated)
+                        {
+                            selection.anchorNode = nextSibling;
+                            selection.anchorOffset = 0;
+                        }
+                    }
+                    this.setSelection(selection);
+                    this.setHandleSelection(true);
+                }
+                else
+                {
+                    this.setHandleSelection(false);
+                    selection.focusOffset = 0;
+                    this.setSelection(selection);
+                    this.setHandleSelection(true);
+                }
+                
+                this.lastNode = selection.focusNode;
+                this.lastOffset = selection.focusOffset;
+            }
+        }
+        
+        this.selectionLastOffset = offset;
     },
     
     sourceInputChanged: function()
@@ -36,11 +176,34 @@ DVEdit = {
         for (var i = 0; i < xNodes.length; i++)
         {
             xNode = xNodes[i];
-            if (xNode.tagName === 'SPAN' && !xNode.lastChild)
+            if (!xNode.getAttribute)
+                continue;
+            var dvData = Parser_GetDVAttrsFromNode(xNode);
+            if (dvData.type === 'base' && !xNode.lastChild)
             {
                 // insert empty text. this is only visual!
                 var textNode = document.createTextNode('\u200b');
                 xNode.appendChild(textNode);
+            }
+            else if (dvData.cstart === void 0 || dvData.cend === void 0)
+            {
+                var xNode1 = xNode.nextSibling;
+                if (xNode1 && xNode1.getAttribute)
+                {
+                    var dvData1 = Parser_GetDVAttrsFromNode(xNode1);
+                    if (dvData1.cstart === void 0 || dvData1.cend === void 0)
+                    {
+                        // insert empty span.
+                        var span = document.createElement('span');
+                        span.setAttribute('dv-type', 'base');
+                        span.setAttribute('dv-start', dvData.end);
+                        span.setAttribute('dv-end', dvData1.start);
+                        span.setAttribute('dv-cstart', dvData.end);
+                        span.setAttribute('dv-cend', dvData1.start);
+                        span.textContent = '\u200b';
+                        xNode1.parentNode.insertBefore(span, xNode1);
+                    }
+                }
             }
         }
 
@@ -54,40 +217,6 @@ DVEdit = {
         //
         e.preventDefault();
         return false;
-    },
-    
-    removeSource: function(start, end)
-    {
-        if (this.isMultiSelection())
-            return; // don't insert anything like this.
-        
-        // insert character.
-        // extremely special case.
-        if (this.SourceControl.value.length)
-        {
-            var selection = window.getSelection();
-            // find first element with dv-type.
-            var dvSel = this.getFirstDVParent(selection.focusNode);
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = selection.focusOffset+dvData.cstart;
-        }
-        else
-        {
-            var dvSel = this.Control.querySelector('p');
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = 0;
-        }
-        
-        // insert character in the source code.
-        var currentSource = this.SourceControl.value;
-        currentSource = currentSource.substr(0, start)+currentSource.substr(end);
-        this.SourceControl.value = currentSource;
-        this.sourceInputChanged();
-        
-        if (cursorPosition >= start && cursorPosition < end)
-            this.setCursorToSource(start);
-        else if (cursorPosition >= end)
-            this.setCursorToSource(cursorPosition-(end-start));
     },
     
     visualKeyDown: function(e)
@@ -113,7 +242,7 @@ DVEdit = {
             else
             {
                 // delete before selection.
-                var selection = window.getSelection();
+                var selection = this.getSelection();
                 if (selection.anchorOffset > 0 && selection.anchorNode.textContent != '\u200b')
                 {
                     // delete one character before.
@@ -137,7 +266,6 @@ DVEdit = {
                     if (selection.anchorNode.parentNode.previousSibling)
                     {
                         var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.previousSibling);
-                        console.log(dvData);
                         if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
                         {
                             //
@@ -156,9 +284,7 @@ DVEdit = {
             else
             {
                 // delete after selection.
-                var selection = window.getSelection();
-                console.log(selection.anchorNode.textContent.length);
-                console.log(selection.anchorOffset);
+                var selection = this.getSelection();
                 if (selection.anchorOffset < selection.anchorNode.textContent.length && selection.anchorNode.textContent != '\u200b')
                 {
                     // delete one character after.
@@ -181,7 +307,6 @@ DVEdit = {
                     if (selection.anchorNode.parentNode.nextSibling)
                     {
                         var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.nextSibling);
-                        console.log(dvData);
                         if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
                         {
                             //
@@ -211,7 +336,7 @@ DVEdit = {
 
     isMultiSelection: function()
     {
-        var selection = window.getSelection();
+        var selection = this.getSelection();
         if (selection.anchorNode != selection.focusNode)
             return true;
         if (selection.anchorOffset != selection.focusOffset)
@@ -277,30 +402,45 @@ DVEdit = {
         return xOutNode;
     },
     
-    setCursorToSource: function(index)
+    getSelection: function()
     {
         var selection = window.getSelection();
+        return { focusNode: selection.focusNode, focusOffset: selection.focusOffset, 
+                 anchorNode: selection.anchorNode, anchorOffset: selection.anchorOffset };
+    },
+    
+    setSelection: function(sel, noset)
+    {
         var range = document.createRange();
+        range.setStart(sel.anchorNode, sel.anchorOffset);
+        range.setEnd(sel.focusNode, sel.focusOffset);
+        var selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    },
+    
+    setCursorToSource: function(index)
+    {
+        var selection = this.getSelection();
         var dvSel = this.getDVNodeBySource(index);
         if (!dvSel) return;
         
         var dvData = Parser_GetDVAttrsFromNode(dvSel);
         if (dvSel.firstChild)
         {
-            range.setStart(dvSel.firstChild, index-dvData.cstart);
-            range.setEnd(dvSel.firstChild, index-dvData.cstart);
+            selection.focusNode = selection.anchorNode = dvSel.firstChild;
+            selection.focusOffset = selection.anchorOffset = index-dvData.cstart;
         }
         else
         {
-            range.setStart(dvSel, 0);
-            range.setEnd(dvSel, 0);
+            selection.focusNode = selection.anchorNode = dvSel;
+            selection.focusOffset = selection.anchorOffset = 0;
         }
-        selection.removeAllRanges();
-        selection.addRange(range);
+        this.setSelection(selection);
     },
     
-    // inserts character at the current cursor position.
-    insertSource: function(ch)
+    // removes source code from start to end (exclusive)
+    removeSource: function(start, end)
     {
         if (this.isMultiSelection())
             return; // don't insert anything like this.
@@ -309,7 +449,7 @@ DVEdit = {
         // extremely special case.
         if (this.SourceControl.value.length)
         {
-            var selection = window.getSelection();
+            var selection = this.getSelection();
             // find first element with dv-type.
             var dvSel = this.getFirstDVParent(selection.focusNode);
             var dvData = Parser_GetDVAttrsFromNode(dvSel);
@@ -323,10 +463,49 @@ DVEdit = {
         }
         
         // insert character in the source code.
+        this.setHandleSelection(false);
+        var currentSource = this.SourceControl.value;
+        currentSource = currentSource.substr(0, start)+currentSource.substr(end);
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged();
+        this.setHandleSelection(true);
+        
+        if (cursorPosition >= start && cursorPosition < end)
+            this.setCursorToSource(start);
+        else if (cursorPosition >= end)
+            this.setCursorToSource(cursorPosition-(end-start));
+    },
+    
+    // inserts character/string at the current cursor position.
+    insertSource: function(ch)
+    {
+        if (this.isMultiSelection())
+            return; // don't insert anything like this.
+        
+        // insert character.
+        // extremely special case.
+        if (this.SourceControl.value.length)
+        {
+            var selection = this.getSelection();
+            // find first element with dv-type.
+            var dvSel = this.getFirstDVParent(selection.focusNode);
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = selection.focusOffset+dvData.cstart;
+        }
+        else
+        {
+            var dvSel = this.Control.querySelector('p');
+            var dvData = Parser_GetDVAttrsFromNode(dvSel);
+            var cursorPosition = 0;
+        }
+        
+        // insert character in the source code.
+        this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
         this.SourceControl.value = currentSource;
         this.sourceInputChanged();
+        this.setHandleSelection(true);
         
         cursorPosition+=ch.length;
         
