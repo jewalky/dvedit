@@ -191,9 +191,10 @@
             $form->addElement(form_makeOpenTag('div', array('id'=>'size__ctl')));
             $form->addElement(form_makeCloseTag('div'));
             
-            $attr = array('tabindex'=>'1', 'class'=>'dv-sourcecode');
+            $attr = array('tabindex'=>'1', 'class'=>'dv-sourcecode', 'name'=>'wikitext');
             if (!$wr) $attr['readonly'] = 'readonly';
-            $form->addElement(form_makeWikiText($TEXT, $attr));
+            $form->addElement(form_makeOpenTag('textarea', $attr));
+            $form->addElement(form_makeCloseTag('textarea'));
             $attr = array('class'=>'dv-visualframe');
             if ($wr) $attr['contenteditable'] = 'true';
             $form->addElement(form_makeOpenTag('div', $attr));
