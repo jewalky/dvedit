@@ -211,6 +211,9 @@ DVEdit = {
     
     visualKeyPress: function(e)
     {
+        if (e.which < 0x20)
+            return;
+        
         var ch = String.fromCharCode(e.which);
         this.insertSource(ch);
         
