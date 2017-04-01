@@ -71,8 +71,9 @@ DVEdit = {
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
+        this.Control.addEventListener('paste', function(e){return DVEdit.visualPaste(e);});
         document.addEventListener('selectionchange', function(e) { return DVEdit.selectionChanged(e); });
-        
+       
         //
         this.sourceInputChanged();
         this.setHandleSelection(true);
@@ -423,6 +424,13 @@ DVEdit = {
     },
     
     visualKeyUp: function(e)
+    {
+        //
+        e.preventDefault();
+        return false;
+    },
+    
+    visualPaste: function(e)
     {
         //
         e.preventDefault();
