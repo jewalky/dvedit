@@ -121,56 +121,126 @@
         
         function render()
         {
+            // this is the code from dokuwiki.
+            // all I change is the identifier of the source control and add my own control.
+            global $INPUT;
             global $ID;
             global $REV;
             global $DATE;
-            global $RANGE;
             global $PRE;
             global $SUF;
             global $INFO;
             global $SUM;
             global $lang;
             global $conf;
-            global $ckgedit_lang;
-            //set summary default
-            if (!$SUM)
-            {
-                if ($REV)
-                {
-                    $SUM = $lang['restored'];
-                }
-                else if (!$INFO['exists'])
-                {
-                    $SUM = $lang['created'];
-                }
+            global $TEXT;
+
+            if ($INPUT->has('changecheck')) {
+                $check = $INPUT->str('changecheck');
+            } elseif(!$INFO['exists']){
+                // $TEXT has been loaded from page template
+                $check = md5('');
+            } else {
+                $check = md5($TEXT);
             }
-            if ($INFO['exists'])
-            {
-                if ($RANGE)
-                {
-                    list($PRE, $text, $SUF) = rawWikiSlices($RANGE, $ID, $REV);
+            $mod = md5($TEXT) !== $check;
+
+            $wr = $INFO['writable'] && !$INFO['locked'];
+            $include = 'edit';
+            if($wr){
+                if ($REV) $include = 'editrev';
+            }else{
+                // check pseudo action 'source'
+                if(!actionOK('source')){
+                    msg('Command disabled: source',-1);
+                    return;
                 }
-                else 
-                {
-                    $text = rawWiki($ID, $REV);
-                }
+                $include = 'read';
             }
-            else
-            {
-                //try to load a pagetemplate
-                $text = pageTemplate($ID);
-                //Check for text from template event handler
-                if (!$text && $this->page_from_template)
-                    $text = $this->page_from_template;
-            }
+
+            global $license;
+
+            $form = new Doku_Form(array('id' => 'dw__editform'));
+            $form->addHidden('id', $ID);
+            $form->addHidden('rev', $REV);
+            $form->addHidden('date', $DATE);
+            $form->addHidden('prefix', $PRE . '.');
+            $form->addHidden('suffix', $SUF);
+            $form->addHidden('changecheck', $check);
+
+            $data = array('form' => $form,
+                          'wr'   => $wr,
+                          'media_manager' => true,
+                          'target' => ($INPUT->has('target') && $wr) ? $INPUT->str('target') : 'section',
+                          'intro_locale' => $include);
+
+            /*if ($data['target'] !== 'section') {
+                // Only emit event if page is writable, section edit data is valid and
+                // edit target is not section.
+                trigger_event('HTML_EDIT_FORMSELECTION', $data, 'html_edit_form', true);
+            } else {
+                html_edit_form($data);
+            }*/
             
+            if (isset($data['intro_locale'])) {
+                echo p_locale_xhtml($data['intro_locale']);
+            }
+
+            $form->addHidden('target', $data['target']);
+            $form->addElement(form_makeOpenTag('div', array('id'=>'wiki__editbar', 'class'=>'editBar')));
+            $form->addElement(form_makeOpenTag('div', array('id'=>'size__ctl')));
+            $form->addElement(form_makeCloseTag('div'));
+            
+            $attr = array('tabindex'=>'1', 'class'=>'dv-sourcecode');
+            if (!$wr) $attr['readonly'] = 'readonly';
+            $form->addElement(form_makeWikiText($TEXT, $attr));
+            $attr = array('class'=>'dv-visualframe');
+            if ($wr) $attr['contenteditable'] = 'true';
+            $form->addElement(form_makeOpenTag('div', $attr));
+            $form->addElement(form_makeCloseTag('div'));
+            
+            /*
             ?>
             <h4>Source code (for debugging)</h4>
-            <textarea class="dv-sourcecode"><?php echo $text; ?></textarea>
+            <textarea name="wikitext" class="dv-sourcecode"><?php echo $TEXT; ?></textarea>
             <hr>
             <h4>Editor</h4>
             <div class="dv-visualframe" contenteditable="true"></div>
-            <?php
+            <?php */
+           
+            if ($wr) {
+                $form->addElement(form_makeOpenTag('div', array('class'=>'editButtons')));
+                $form->addElement(form_makeButton('submit', 'save', $lang['btn_save'], array('id'=>'edbtn__save', 'accesskey'=>'s', 'tabindex'=>'4')));
+                //$form->addElement(form_makeButton('submit', 'preview', $lang['btn_preview'], array('id'=>'edbtn__preview', 'accesskey'=>'p', 'tabindex'=>'5')));
+                $form->addElement(form_makeButton('submit', 'draftdel', $lang['btn_cancel'], array('tabindex'=>'6')));
+                $form->addElement(form_makeCloseTag('div'));
+                $form->addElement(form_makeOpenTag('div', array('class'=>'summary')));
+                $form->addElement(form_makeTextField('summary', $SUM, $lang['summary'], 'edit__summary', 'nowrap', array('size'=>'50', 'tabindex'=>'2')));
+                $elem = html_minoredit();
+                if ($elem) $form->addElement($elem);
+                $form->addElement(form_makeCloseTag('div'));
+            }
+            
+            $form->addElement(form_makeCloseTag('div'));
+            if($wr && $conf['license']){
+                $form->addElement(form_makeOpenTag('div', array('class'=>'license')));
+                $out  = $lang['licenseok'];
+                $out .= ' <a href="'.$license[$conf['license']]['url'].'" rel="license" class="urlextern"';
+                if($conf['target']['extern']) $out .= ' target="'.$conf['target']['extern'].'"';
+                $out .= '>'.$license[$conf['license']]['name'].'</a>';
+                $form->addElement($out);
+                $form->addElement(form_makeCloseTag('div'));
+            }
+
+            if ($wr) {
+                // sets changed to true when previewed
+                echo '<script type="text/javascript">/*<![CDATA[*/'. NL;
+                echo 'textChanged = ' . ($mod ? 'true' : 'false');
+                echo '/*!]]>*/</script>' . NL;
+            }
+            
+            html_form('edit', $form);
+            print '</div>'.NL;
         }
 
     }

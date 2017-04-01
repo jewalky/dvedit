@@ -262,7 +262,7 @@ function Parser_Handler() {
 
         _finalize: function() {
             // take output and convert newlines to p's
-            var outS = this.output.split('\n');
+            var outS = this.output.split('\n\n');
             var pos = 0;
             var output = '';
             for (var i = 0; i < outS.length; i++) {
@@ -281,14 +281,14 @@ function Parser_Handler() {
                 }
                 var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
                 output += newS;
-                pos += outS[i].length+1;
+                pos += outS[i].length+2;
             }
             this.output = output;
         },
 
         // this function remembers source positions for unmatched multiline text using spans.
         _makeParagraphs: function(match, basePos) {
-            var outS = match.split('\n');
+            var outS = match.split('\n\n');
             var pos = basePos;
             var output = '';
             for (var i = 0; i < outS.length; i++) {
@@ -299,10 +299,11 @@ function Parser_Handler() {
                 //var inAttrs = this._getDVAttrsFromHTML(outS[i]);
                 var isN = (i != outS.length-1) && (outS.length > 1);
                 var s = outS[i].replace(/\u200b/g, '');
+                s = s.replace(/\n/g, ' ');
                 s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace('/&/g', '&amp;').replace('/"/g', '&quot;');
                 var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length + (isN ? 1 : 0), pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
-                output += newS + (isN ? '\n' : '');
-                pos += outS[i].length+(isN?1:0);
+                output += newS + (isN ? '\n\n' : '');
+                pos += outS[i].length+(isN?2:0);
             }
             return output;
         },
