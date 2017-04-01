@@ -194,6 +194,7 @@
             $attr = array('tabindex'=>'1', 'class'=>'dv-sourcecode', 'name'=>'wikitext');
             if (!$wr) $attr['readonly'] = 'readonly';
             $form->addElement(form_makeOpenTag('textarea', $attr));
+            $form->addElement($TEXT);
             $form->addElement(form_makeCloseTag('textarea'));
             $attr = array('class'=>'dv-visualframe');
             if ($wr) $attr['contenteditable'] = 'true';
