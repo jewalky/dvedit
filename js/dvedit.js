@@ -230,7 +230,7 @@ DVEdit = {
             }
             else 
             {
-                this.insertSource('\n');
+                this.insertSource('\n\n');
             }
         }
         else if (e.keyCode === 8) // backspace

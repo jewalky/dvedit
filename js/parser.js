@@ -301,7 +301,7 @@ function Parser_Handler() {
                 var s = outS[i].replace(/\u200b/g, '');
                 s = s.replace(/\n/g, ' ');
                 s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace('/&/g', '&amp;').replace('/"/g', '&quot;');
-                var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length + (isN ? 1 : 0), pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
+                var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length + (isN ? 2 : 0), pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
                 output += newS + (isN ? '\n\n' : '');
                 pos += outS[i].length+(isN?2:0);
             }
