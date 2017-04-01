@@ -174,14 +174,6 @@
                           'target' => ($INPUT->has('target') && $wr) ? $INPUT->str('target') : 'section',
                           'intro_locale' => $include);
 
-            /*if ($data['target'] !== 'section') {
-                // Only emit event if page is writable, section edit data is valid and
-                // edit target is not section.
-                trigger_event('HTML_EDIT_FORMSELECTION', $data, 'html_edit_form', true);
-            } else {
-                html_edit_form($data);
-            }*/
-            
             if (isset($data['intro_locale'])) {
                 echo p_locale_xhtml($data['intro_locale']);
             }
@@ -201,15 +193,6 @@
             $form->addElement(form_makeOpenTag('div', $attr));
             $form->addElement(form_makeCloseTag('div'));
             
-            /*
-            ?>
-            <h4>Source code (for debugging)</h4>
-            <textarea name="wikitext" class="dv-sourcecode"><?php echo $TEXT; ?></textarea>
-            <hr>
-            <h4>Editor</h4>
-            <div class="dv-visualframe" contenteditable="true"></div>
-            <?php */
-           
             if ($wr) {
                 $form->addElement(form_makeOpenTag('div', array('class'=>'editButtons')));
                 $form->addElement(form_makeButton('submit', 'save', $lang['btn_save'], array('id'=>'edbtn__save', 'accesskey'=>'s', 'tabindex'=>'4')));
@@ -233,7 +216,7 @@
                 $form->addElement($out);
                 $form->addElement(form_makeCloseTag('div'));
             }
-
+            
             if ($wr) {
                 // sets changed to true when previewed
                 echo '<script type="text/javascript">/*<![CDATA[*/'. NL;
@@ -242,7 +225,7 @@
             }
             
             html_form('edit', $form);
-            print '</div>'.NL;
+            //print '</div>'.NL;
         }
 
     }
