@@ -1,3 +1,64 @@
+DVUndoRedo = {
+    
+    values: [],
+    cursors: [],
+    position: -1,
+    
+    maxSize: 1024*1024*2,
+
+    // removes excessive undo/redo buffer values.
+    cleanupValues: function()
+    {
+        
+        var l = 0;
+        var s = 0;
+        for (var i = this.values.length-1; i >= 0; i--)
+        {
+            s += this.values[i].length;
+            if (s > this.maxSize)
+                l++;
+        }
+        this.values = this.values.slice(l);
+        this.cursors = this.cursors.slice(l);
+    },
+    
+    addValue: function(v, c)
+    {
+        if (this.values.length && this.values[this.values.length-1]===v)
+            return false;
+        
+        if (this.position < 0)
+        {
+            this.values = [v];
+            this.cursors = [c];
+            this.position++;
+        }
+        else if (this.position >= this.values.length)
+        {
+            this.values.push(v);
+            this.cursors.push(c);
+        }
+        else
+        {
+            this.values = this.values.slice(0, this.position);
+            this.cursors = this.values.slice(0, this.position);
+            this.values.push(v);
+            this.cursors.push(c);
+        }
+        
+        this.position++;
+        return true;
+    },
+    
+    clear: function()
+    {
+        this.values = [];
+        this.cursors = [];
+        this.position = -1;
+    }
+    
+};
+
 DVEdit = {
     
     init: function()
@@ -6,7 +67,7 @@ DVEdit = {
         this.Control = document.querySelector('.dv-visualframe');
         
         //
-        this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged();});
+        this.SourceControl.addEventListener('input', function(e){return DVEdit.sourceInputChanged(false);});
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
@@ -155,8 +216,14 @@ DVEdit = {
         this.selectionLastOffset = offset;
     },
     
-    sourceInputChanged: function()
+    sourceInputChanged: function(manual)
     {
+        if (!manual)
+        {
+            DVUndoRedo.clear();
+            DVUndoRedo.addValue(this.SourceControl.value, 0);
+        }
+        
         var sStart = this.SourceControl.selectionStart;
         var sEnd = this.SourceControl.selectionEnd;
         var newSource = this.SourceControl.value || '';
@@ -206,7 +273,6 @@ DVEdit = {
                 }
             }
         }
-
     },
     
     visualKeyPress: function(e)
@@ -224,6 +290,8 @@ DVEdit = {
     
     visualKeyDown: function(e)
     {
+        var c = String.fromCharCode(e.keyCode);
+        
         // enter key
         if (e.keyCode === 13)
         {
@@ -257,8 +325,8 @@ DVEdit = {
                     var currentSource = this.SourceControl.value;
                     currentSource = currentSource.substr(0, cursorPosition-1)+currentSource.substr(cursorPosition);
                     this.SourceControl.value = currentSource;
-                    this.sourceInputChanged();
                     
+                    this.sourceInputChanged(true);
                     this.setCursorToSource(cursorPosition-1);
                 }
                 else
@@ -299,8 +367,8 @@ DVEdit = {
                     var currentSource = this.SourceControl.value;
                     currentSource = currentSource.substr(0, cursorPosition)+currentSource.substr(cursorPosition+1);
                     this.SourceControl.value = currentSource;
-                    this.sourceInputChanged();
                     
+                    this.sourceInputChanged(true);
                     this.setCursorToSource(cursorPosition);
                 }
                 else
@@ -321,7 +389,31 @@ DVEdit = {
         }
         else if (e.ctrlKey) // ctrl+something
         {
-            // do nothing for now
+            if (c === 'C') // allow copy
+            {
+                return true;
+            }
+            else if (c === 'Z' && !e.shiftKey) // undo
+            {
+                if (DVUndoRedo.position > 0)
+                {
+                    //
+                    DVUndoRedo.position--;
+                    this.SourceControl.value = DVUndoRedo.values[DVUndoRedo.position];
+                    this.sourceInputChanged(true);
+                    this.setCursorToSource(DVUndoRedo.cursors[DVUndoRedo.position]);
+                }
+            }
+            else if ((c === 'Z' && e.shiftKey) || (c === 'Y')) // redo (ctrl+Y or ctrl+shift+Z)
+            {
+                if (DVUndoRedo.position >= 0 && DVUndoRedo.position < DVUndoRedo.values.length-1)
+                {
+                    DVUndoRedo.position++;
+                    this.SourceControl.value = DVUndoRedo.values[DVUndoRedo.position];
+                    this.sourceInputChanged(true);
+                    this.setCursorToSource(DVUndoRedo.cursors[DVUndoRedo.position]);
+                }
+            }
         }
         else return true;
         
@@ -442,13 +534,8 @@ DVEdit = {
         this.setSelection(selection);
     },
     
-    // removes source code from start to end (exclusive)
-    removeSource: function(start, end)
+    getSourceLocation: function()
     {
-        if (this.isMultiSelection())
-            return; // don't insert anything like this.
-        
-        // insert character.
         // extremely special case.
         if (this.SourceControl.value.length)
         {
@@ -465,12 +552,33 @@ DVEdit = {
             var cursorPosition = 0;
         }
         
+        return {
+            dvSel: dvSel,
+            dvData: dvData,
+            cursorPosition: cursorPosition
+        };
+    },
+    
+    // removes source code from start to end (exclusive)
+    removeSource: function(start, end)
+    {
+        if (this.isMultiSelection())
+            return; // don't insert anything like this.
+        
+        // insert character.
+        var loc = this.getSourceLocation();
+        var dvSel = loc.dvSel;
+        var dvData = loc.dvData;
+        var cursorPosition = loc.cursorPosition;
+
         // insert character in the source code.
         this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
+        DVUndoRedo.addValue(currentSource, cursorPosition);
+        
         currentSource = currentSource.substr(0, start)+currentSource.substr(end);
         this.SourceControl.value = currentSource;
-        this.sourceInputChanged();
+        this.sourceInputChanged(true);
         this.setHandleSelection(true);
         
         if (cursorPosition >= start && cursorPosition < end)
@@ -486,28 +594,19 @@ DVEdit = {
             return; // don't insert anything like this.
         
         // insert character.
-        // extremely special case.
-        if (this.SourceControl.value.length)
-        {
-            var selection = this.getSelection();
-            // find first element with dv-type.
-            var dvSel = this.getFirstDVParent(selection.focusNode);
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = selection.focusOffset+dvData.cstart;
-        }
-        else
-        {
-            var dvSel = this.Control.querySelector('p');
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = 0;
-        }
+        var loc = this.getSourceLocation();
+        var dvSel = loc.dvSel;
+        var dvData = loc.dvData;
+        var cursorPosition = loc.cursorPosition;
         
         // insert character in the source code.
         this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
+        DVUndoRedo.addValue(currentSource, cursorPosition);
+        
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
         this.SourceControl.value = currentSource;
-        this.sourceInputChanged();
+        this.sourceInputChanged(true);
         this.setHandleSelection(true);
         
         cursorPosition+=ch.length;
