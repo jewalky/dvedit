@@ -8,6 +8,8 @@
     
     class action_plugin_dvedit_edit extends DokuWiki_Action_Plugin
     {
+        private $editor;
+        
         function register(Doku_Event_Handler $controller)
         {
             // found in ckgedit
@@ -16,6 +18,23 @@
         
             $controller->register_hook('TPL_ACT_RENDER', 'BEFORE', $this, 'dvedit_render');
             $controller->register_hook('TPL_METAHEADER_OUTPUT', 'BEFORE', $this, 'dvedit_meta');
+            
+            $editor = 'dw';
+            if (isset($_GET['editor']))
+            {
+                $editor = ($_GET['editor']==='dv')?'dv':'dw';
+                setcookie('dv-editor', $editor);
+            }
+            else if (isset($_COOKIE['dv-editor']))
+            {
+                $editor = ($_COOKIE['dv-editor']==='dv')?'dv':'dw';
+            }
+            else $editor = 'dw';
+            
+            if ($editor === 'dw')
+                unset($_GET['editor']);
+            
+            $this->editor = $editor;
         }
         
         function pagefromtemplate(Doku_Event $event)
@@ -67,7 +86,6 @@
 
         function dvedit_render(Doku_Event $event)
         {
-            
             global $INFO;
             
             // we only change the edit behaviour
@@ -75,24 +93,17 @@
                 return;
             }
             
-            if (isset($_GET['editor']))
-            {
-                $editor = $_GET['editor']==='dv'?'dv':'dw';
-                setcookie('dv-editor', $editor);
-            }
-            else if (isset($_COOKIE['editor']))
-            {
-                $editor = $_COOKIE['editor']==='dv'?'dv':'dw';
-            }
-            else $editor = 'dw';
-            
-            if ($editor === 'dw')
-                unset($_GET['editor']);
+            $editor = $this->editor;
             
             // the switch
+            $params_dw = $params_dv = $_GET;
+            $params_dw['editor'] = 'dw';
+            $params_dv['editor'] = 'dv';
+            $params_dw = http_build_query($params_dw);
+            $params_dv = http_build_query($params_dv);
             ?>
                 <div class="dv-switcher">
-                    <a href="?id=<?php echo $_GET['id']; ?>&do=edit&editor=dw" class="<?php echo ($editor==='dw')?'current':''; ?>">DokuWiki</a><a href="?id=<?php echo $_GET['id']; ?>&do=edit&editor=dv" class="<?php echo ($editor==='dv')?'current':''; ?>">DokuVisual</a>
+                    <a href="?<?php echo $params_dw ?>" class="<?php echo ($editor==='dw')?'current':''; ?>">DokuWiki</a><a href="?<?php echo $params_dv ?>" class="<?php echo ($editor==='dv')?'current':''; ?>">DokuVisual</a>
                 </div>
             <?php
             
