@@ -602,6 +602,12 @@ DVEdit = {
         var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
         var cursor1 = s1.cursorPosition;
         var cursor2 = s2.cursorPosition;
+        if (cursor2 < cursor1)
+        {
+            var t = cursor2;
+            cursor2 = cursor1;
+            cursor1 = t;
+        }
         
         var currentSource = this.SourceControl.value;
         if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
