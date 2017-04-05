@@ -76,7 +76,7 @@ Parser.prototype.addMode = function(name, Mode) {
     //      */
 
     if (!this.modes['base'])
-        this.addBaseMode(Parser_Mode_base());
+        this.addBaseMode(Parser_CreateMode('base'));
     Mode.Lexer = this.Lexer;
     this.modes[name] = Mode;
 };
@@ -116,36 +116,14 @@ Parser.prototype.parse = function(doc) {
     }
 };
 
-function Parser_Mode() {
-    return {
-        Lexer: void 0,
-        allowedModes: [],
-
-        getSort: void 0,
-        preConnect: function() {},
-        connectTo: function(mode) {},
-        postConnect: function() {},
-        accepts: function(mode) { return this.allowedModes.indexOf(mode) >= 0; }
-    };
-}
-
 function p_get_parsermodes() {
     const modes = [];
     // currently only support standard modes.
-    const std_modes = ['listblock','preformatted','notoc','nocache',
-        'header','table','linebreak','footnote','hr',
-        'unformatted','php','html','code','file','quote',
-        'internallink','rss','media','externallink',
-        'emaillink','windowssharelink','eol'];
+    const std_modes = Parser_GetModes();
     for (var i = 0; i < std_modes.length; i++) {
-        const cls = 'Parser_Mode_'+std_modes[i];
-        if (!window[cls]) continue; // softer handling here. original code would abort I think.
-        const obj = window[cls]();
-        modes.push({
-            sort: obj.getSort(),
-            mode: std_modes[i],
-            obj: obj
-        });
+        var mode = Parser_GetMode(std_modes[i]);
+        if (!mode) continue;
+        modes.push(mode);
     }
     return modes;
 }
@@ -158,33 +136,6 @@ function Parse(text) {
         parser.addMode(modes[i].mode, modes[i].obj);
     const p = parser.parse(text);
     return p;
-}
-
-function Parser_Mode_base() {
-    const pm = Parser_Mode();
-    pm.allowedModes = PARSER_MODES.container
-        .concat(PARSER_MODES.baseonly)
-        .concat(PARSER_MODES.paragraphs)
-        .concat(PARSER_MODES.formatting)
-        .concat(PARSER_MODES.substition)
-        .concat(PARSER_MODES.protected)
-        .concat(PARSER_MODES.disabled);
-    pm.getSort = function() { return 0; }
-    return pm;
-}
-
-function Parser_Mode_linebreak() {
-    const pm = Parser_Mode();
-
-    pm.connectTo = function(mode) {
-        this.Lexer.addSpecialPattern(/\x5C{2}(?:[\s\t]|(?=\n))/, mode, 'linebreak');
-    };
-
-    pm.getSort = function() {
-        return 140;
-    };
-
-    return pm;
 }
 
 function Parser_GetDVAttrsFromNode(node) {
@@ -207,118 +158,4 @@ function Parser_GetDVAttrsFromNode(node) {
     if (attrs.type === null) attrs.type = void 0;
 
     return attrs;
-}
-
-function Parser_Handler() {
-    return {
-        output: '',
-
-        _getDVAttrs: function(start, end, cstart, cend, type) {
-            var s = '';
-            if (start !== void 0)
-                s += 'dv-start="'+start+'"';
-            if (end !== void 0) {
-                if (s.length) s += ' ';
-                s += 'dv-end="'+end+'"';
-            }
-            if (cstart !== void 0) {
-                if (s.length) s += ' ';
-                s += 'dv-cstart="'+cstart+'"';
-            }
-            if (cend !== void 0) {
-                if (s.length) s += ' ';
-                s += 'dv-cend="'+cend+'"';
-            }
-            if (type !== void 0) {
-                if (s.length) s += ' ';
-                s += 'dv-type="'+type+'"';
-            }
-            return s;
-        },
-
-        _getDVAttrsFromNodes: function(nodes) {
-            var attrs = {};
-            attrs.start = attrs.cstart = void 0;
-            attrs.end = attrs.cend = void 0;
-            for (var i = 0; i < nodes.length; i++) {
-                var nodeAttrs = Parser_GetDVAttrsFromNode(nodes[i]);
-                if (nodeAttrs.start !== void 0 &&
-                    (attrs.start === void 0 || nodeAttrs.start < attrs.start)) attrs.start = nodeAttrs.start;
-                if (nodeAttrs.cstart !== void 0 &&
-                    (attrs.cstart === void 0 || nodeAttrs.cstart < attrs.cstart)) attrs.cstart = nodeAttrs.cstart;
-                if (nodeAttrs.end !== void 0 &&
-                    (attrs.end === void 0 || nodeAttrs.end > attrs.end)) attrs.end = nodeAttrs.end;
-                if (nodeAttrs.cend !== void 0 &&
-                    (attrs.cend === void 0 || nodeAttrs.cend > attrs.cend)) attrs.cend = nodeAttrs.cend;
-            }
-            return attrs;
-        },
-
-        _getDVAttrsFromHTML: function(html) {
-            var o = document.createElement('div');
-            o.innerHTML = html;
-            return this._getDVAttrsFromNodes(o.childNodes);
-        },
-
-        _finalize: function() {
-            // take output and convert newlines to p's
-            var outS = this.output.split('\n\n');
-            var pos = 0;
-            var output = '';
-            for (var i = 0; i < outS.length; i++) {
-                // <p>{inside}</p>
-                // <p> is not counted anywhere (it has zero length in source code)
-                // </p> is the newline
-                // everything in between is content
-                //var newS = '<p '+this._getDVAttrs(pos, pos, pos, pos+outS[i].length, 'paragraph')+'>' + outS[i] + '</p>';
-                //var newS = '<p>' + outS[i] + '</p>';
-                //console.log('for item "%s" attrs = %s', outS[i], JSON.stringify(this._getDVAttrsFromHTML(outS[i])));
-                var inAttrs = this._getDVAttrsFromHTML(outS[i]);
-                if (!outS[i].length)
-                {
-                    inAttrs.start = inAttrs.cstart = pos;
-                    inAttrs.end = inAttrs.cend = pos;
-                }
-                var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
-                output += newS;
-                pos += outS[i].length+2;
-            }
-            this.output = output;
-        },
-
-        // this function remembers source positions for unmatched multiline text using spans.
-        _makeParagraphs: function(match, basePos) {
-            var outS = match.split('\n\n');
-            var pos = basePos;
-            var output = '';
-            for (var i = 0; i < outS.length; i++) {
-                // <p>{inside}</p>
-                // <p> is not counted anywhere (it has zero length in source code)
-                // </p> is the newline
-                // everything in between is content
-                //var inAttrs = this._getDVAttrsFromHTML(outS[i]);
-                var isN = (i != outS.length-1) && (outS.length > 1);
-                var s = outS[i].replace(/\u200b/g, '');
-                s = s.replace(/\n/g, ' ');
-                s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace('/&/g', '&amp;').replace('/"/g', '&quot;');
-                var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length + (isN ? 2 : 0), pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
-                output += newS + (isN ? '\n\n' : '');
-                pos += outS[i].length+(isN?2:0);
-            }
-            return output;
-        },
-
-        base: function(match, state, pos) {
-            switch (state) {
-                case DOKU_LEXER_UNMATCHED:
-                    this.output += this._makeParagraphs(match, pos);
-                    return true;
-            }
-        },
-
-        linebreak: function(match, state, pos) {
-            this.output += '<br '+this._getDVAttrs(pos, pos+match.length, void 0, void 0, 'linebreak')+'>';
-            return true;
-        }
-    };
 }

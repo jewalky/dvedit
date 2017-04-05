@@ -70,7 +70,7 @@
                 echo "\n" . '<meta http-equiv="X-UA-Compatible" content="IE=EmulateIE8" />' . "\n";
             }*/
             
-            $scripts = array('lexer', 'syntax', 'parser', 'dvedit');
+            $scripts = array('lexer', 'parser', 'syntax', 'dvedit');
             
             foreach ($scripts as $script)
             {

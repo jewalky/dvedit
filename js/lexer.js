@@ -304,13 +304,14 @@ Lexer.prototype._invokeParser = function(content, isMatch, pos) {
     if (this._mode_handlers[handler])
         handler = this._mode_handlers[handler];
     //
+    var cls = Syntax[handler];
     if (handler.startsWith('plugin_')) {
         var handlerSplit = handler.split('_', 2);
         handler = handlerSplit[0];
         var plugin = handlerSplit[1];
-        return this._parser[handler](content, isMatch, pos, plugin);
+        return cls.process(content, isMatch, pos, plugin, this._parser);
     }
-    return this._parser[handler](content, isMatch, pos);
+    return cls.process(content, isMatch, pos, this._parser);
 };
 
 Lexer.prototype._reduce = function(raw) {
