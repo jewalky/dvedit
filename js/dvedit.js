@@ -742,6 +742,17 @@ DVEdit = {
         var currentSource = this.SourceControl.value;
         if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
         
+        if (this.isMultiSelection())
+        {
+            this.removeSelection(false);
+            
+            currentSource = this.SourceControl.value;
+            loc = this.getSourceLocation();
+            dvSel = loc.dvSel;
+            dvData = loc.dvData;
+            cursorPosition = loc.cursorPosition;
+        }
+        
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
         this.SourceControl.value = currentSource;
         this.sourceInputChanged(true);
