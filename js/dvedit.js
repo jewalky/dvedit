@@ -417,6 +417,10 @@ DVEdit = {
                     this.setCursorToSource(DVUndoRedo.cursors[DVUndoRedo.position]);
                 }
             }
+            else if (c === 'A') // allow select all
+            {
+                return true;
+            }
         }
         else return true;
         
@@ -618,6 +622,8 @@ DVEdit = {
                     continue;
                 if (dvData.cstart > cursor2 || dvData.cend < cursor1)
                     continue;
+                var dvParent = this.getAllDVParents(xNode);
+                dvData.type = Parser_GetDVAttrsFromNode(dvParent[1]).type;
             }
             
             var rules = Syntax[dvData.type];
@@ -644,6 +650,7 @@ DVEdit = {
         });
         
         var offset1 = 0;
+        var startBlock = xNodes[0];
         
         for (var i = 0; i < xNodes.length; i++)
         {
@@ -653,7 +660,6 @@ DVEdit = {
             var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
             var hasContent = (dvData.cstart !== void 0 && dvData.cend !== void 0);
 
-            console.log(xNode);
             switch (dType)
             {
                 case DeleteType_Overlapping:
@@ -671,9 +677,8 @@ DVEdit = {
                     var isEmpty = (start === dvData.cstart && end === dvData.cend);
                     start += offset1;
                     end += offset1;
-                    if (isEmpty && (cursor1 < dvData.cstart || cursor1 >= dvData.cend))
+                    if (isEmpty && dvData != startBlock)
                     {
-                        console.log(xNode, dvData.cend, cursor1);
                         this.removeSource(dvData.start+offset1, dvData.end+offset1, false);
                         offset1 -= dvData.end-dvData.start;
                         cursor2 -= dvData.end-dvData.start;
@@ -698,6 +703,17 @@ DVEdit = {
                     cursor2 -= end-start;
                     break;
             }
+        }
+        
+        // if end node is the same as start node (type-wise), we can merge.
+        if (xNodes[0].type === xNodes[xNodes.length-1].type &&
+            xNodes[0].rules.deleteType !== DeleteType_Overlapping)
+        {
+            var start = cursor1;
+            var end = cursor2;
+            this.removeSource(start, end, false);
+            offset1 -= end-start;
+            cursor2 -= end-start;
         }
         
         this.setCursorToSource(cursor1);
