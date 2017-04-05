@@ -311,7 +311,7 @@ DVEdit = {
         {
             if (this.isMultiSelection())
             {
-                // do nothing for now
+                this.removeSelection();
             }
             else
             {
@@ -353,7 +353,7 @@ DVEdit = {
         {
             if (this.isMultiSelection())
             {
-                // do nothing for now
+                this.removeSelection();
             }
             else
             {
@@ -583,7 +583,7 @@ DVEdit = {
     },
     
     // removes currently selected block.
-    removeSelection: function()
+    removeSelection: function(doUndoRedo)
     {
         if (!this.isMultiSelection())
             return;
@@ -598,6 +598,9 @@ DVEdit = {
         var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
         var cursor1 = s1.cursorPosition;
         var cursor2 = s2.cursorPosition;
+        
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
         
         var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
         var xNode;
@@ -696,6 +699,8 @@ DVEdit = {
                     break;
             }
         }
+        
+        this.setCursorToSource(cursor1);
     },
     
     // removes source code from start to end (exclusive)
