@@ -449,9 +449,9 @@ DVEdit = {
     isMultiSelection: function()
     {
         var selection = this.getSelection();
-        if (selection.anchorNode != selection.focusNode)
+        if (selection.anchorNode !== selection.focusNode)
             return true;
-        if (selection.anchorOffset != selection.focusOffset)
+        if (selection.anchorOffset !== selection.focusOffset)
             return true;
         return false;
     },
@@ -551,16 +551,22 @@ DVEdit = {
         this.setSelection(selection);
     },
     
-    getSourceLocation: function()
+    getSourceLocation: function(focusNode, focusOffset)
     {
+        if (focusNode === void 0 || focusOffset === void 0)
+        {
+            var selection = this.getSelection();
+            focusNode = selection.focusNode;
+            focusOffset = selection.focusOffset;
+        }
+        
         // extremely special case.
         if (this.SourceControl.value.length)
         {
-            var selection = this.getSelection();
             // find first element with dv-type.
-            var dvSel = this.getFirstDVParent(selection.focusNode);
+            var dvSel = this.getFirstDVParent(focusNode);
             var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = selection.focusOffset+dvData.cstart;
+            var cursorPosition = focusOffset+dvData.cstart;
         }
         else
         {
@@ -576,12 +582,125 @@ DVEdit = {
         };
     },
     
-    // removes source code from start to end (exclusive)
-    removeSource: function(start, end)
+    // removes currently selected block.
+    removeSelection: function()
     {
-        if (this.isMultiSelection())
-            return; // don't insert anything like this.
+        if (!this.isMultiSelection())
+            return;
         
+        var selection = this.getSelection();
+        
+        // 1. get source location of start and end of selection.
+        // 2. get all elements that fall under this range.
+        // 3. process according to the rules.
+        
+        var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+        var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+        var cursor1 = s1.cursorPosition;
+        var cursor2 = s2.cursorPosition;
+        
+        var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
+        var xNode;
+        var xNodes = [];
+        while (xNode = xSearch.iterateNext())
+        {
+            var dvData = Parser_GetDVAttrsFromNode(xNode);
+            if (!dvData.type)
+                continue;
+            if (dvData.start > cursor2 || dvData.end < cursor1)
+                continue;
+            if (dvData.cstart !== void 0 && dvData.cend !== void 0)
+            {
+                if (xNode.firstChild.nodeType !== Node.TEXT_NODE)
+                    continue;
+                if (dvData.cstart > cursor2 || dvData.cend < cursor1)
+                    continue;
+            }
+            
+            var rules = Syntax[dvData.type];
+            if (!rules)
+                continue;
+            dvData.node = xNode;
+            dvData.rules = rules;
+            xNodes.push(dvData);
+        }
+        
+        xNodes.sort(function(a, b) {
+            if (a.start < b.start)
+                return -1;
+            if (a.start > b.start)
+                return 1;
+            if (a.cstart !== void 0 && b.cstart !== void 0)
+            {
+                if (a.cstart < b.cstart)
+                    return -1;
+                if (a.cstart > b.cstart)
+                    return 1;
+            }
+            return 0;
+        });
+        
+        var offset1 = 0;
+        
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            var dvData = xNodes[i];
+            xNode = xNodes[i].node;
+            var rules = xNodes[i].rules;
+            var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
+            var hasContent = (dvData.cstart !== void 0 && dvData.cend !== void 0);
+
+            console.log(xNode);
+            switch (dType)
+            {
+                case DeleteType_Overlapping:
+                    // just remove the node entirely.
+                    this.removeSource(dvData.start+offset1, dvData.end+offset1, false);
+                    offset1 -= dvData.end-dvData.start;
+                    cursor2 -= dvData.end-dvData.start;
+                    break;
+                case DeleteType_Empty:
+                    if (!hasContent)
+                        continue;
+                    // remove content in the node, then delete the node itself if it's empty.
+                    var start = Math.max(cursor1, dvData.cstart);
+                    var end = Math.min(cursor2-offset1, dvData.cend);
+                    var isEmpty = (start === dvData.cstart && end === dvData.cend);
+                    start += offset1;
+                    end += offset1;
+                    if (isEmpty && (cursor1 < dvData.cstart || cursor1 >= dvData.cend))
+                    {
+                        console.log(xNode, dvData.cend, cursor1);
+                        this.removeSource(dvData.start+offset1, dvData.end+offset1, false);
+                        offset1 -= dvData.end-dvData.start;
+                        cursor2 -= dvData.end-dvData.start;
+                    }
+                    else
+                    {
+                        this.removeSource(start, end, false);
+                        offset1 -= end-start;
+                        cursor2 -= end-start;
+                    }
+                    break;
+                case DeleteType_Never:
+                    if (!hasContent)
+                        continue;
+                    // remove content in the node, don't delete the node even if empty.
+                    var start = Math.max(cursor1, dvData.cstart);
+                    var end = Math.min(cursor2-offset1, dvData.cend);
+                    start += offset1;
+                    end += offset1;
+                    this.removeSource(start, end, false);
+                    offset1 -= end-start;
+                    cursor2 -= end-start;
+                    break;
+            }
+        }
+    },
+    
+    // removes source code from start to end (exclusive)
+    removeSource: function(start, end, doUndoRedo)
+    {
         // insert character.
         var loc = this.getSourceLocation();
         var dvSel = loc.dvSel;
@@ -591,7 +710,7 @@ DVEdit = {
         // insert character in the source code.
         this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
-        DVUndoRedo.addValue(currentSource, cursorPosition);
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
         
         currentSource = currentSource.substr(0, start)+currentSource.substr(end);
         this.SourceControl.value = currentSource;
@@ -605,11 +724,8 @@ DVEdit = {
     },
     
     // inserts character/string at the current cursor position.
-    insertSource: function(ch)
+    insertSource: function(ch, doUndoRedo)
     {
-        if (this.isMultiSelection())
-            return; // don't insert anything like this.
-        
         // insert character.
         var loc = this.getSourceLocation();
         var dvSel = loc.dvSel;
@@ -619,7 +735,7 @@ DVEdit = {
         // insert character in the source code.
         this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
-        DVUndoRedo.addValue(currentSource, cursorPosition);
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
         
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
         this.SourceControl.value = currentSource;

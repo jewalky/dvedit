@@ -1,7 +1,12 @@
 /**
  * Created by ZZYZX on 05/03/2017.
  * This file defines the syntax that's supported.
- */
+*/
+
+// "h" parameter for process functions is the object returned by Parser_Handler().
+const DeleteType_Overlapping = 0;
+const DeleteType_Empty = 1;
+const DeleteType_Never = 2;
 
 const Syntax = {
     base: {
@@ -23,6 +28,11 @@ const Syntax = {
         }
     },
     
+    // this is not used directly, but specifies element style.
+    paragraph: {
+        
+    },
+    
     linebreak: {
         sort: 140,
         connectTo: function(mode) {
@@ -32,10 +42,11 @@ const Syntax = {
         process: function(match, state, pos, h) {
             h.output += '<br '+h._getDVAttrs(pos, pos+match.length, void 0, void 0, 'linebreak')+'>';
             return true;
-        }
-
+        },
+        
+        deleteType: DeleteType_Overlapping
     }
-}
+};
  
 // these are all utility functions to help moving away from DW PHP-style parser
 // list of supported modes. 
