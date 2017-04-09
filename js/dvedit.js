@@ -317,7 +317,7 @@ DVEdit = {
             {
                 // delete before selection.
                 var selection = this.getSelection();
-                if (selection.anchorOffset > 0 && selection.anchorNode.textContent != '\u200b')
+                if (selection.anchorOffset > 0 && selection.anchorNode.textContent !== '\u200b')
                 {
                     // delete one character before.
                     // find first element with dv-type.
@@ -340,10 +340,14 @@ DVEdit = {
                     if (selection.anchorNode.parentNode.previousSibling)
                     {
                         var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.previousSibling);
-                        if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
+                        if (dvData.type !== void 0)
                         {
-                            //
-                            this.removeSource(dvData.start, dvData.end);
+                            var rules = Syntax[dvData.type];
+                            if (rules.deleteType === DeleteType_Overlapping)
+                            {
+                                //
+                                this.removeSource(dvData.start, dvData.end);
+                            }
                         }
                     }
                 }
@@ -359,7 +363,7 @@ DVEdit = {
             {
                 // delete after selection.
                 var selection = this.getSelection();
-                if (selection.anchorOffset < selection.anchorNode.textContent.length && selection.anchorNode.textContent != '\u200b')
+                if (selection.anchorOffset < selection.anchorNode.textContent.length && selection.anchorNode.textContent !== '\u200b')
                 {
                     // delete one character after.
                     // find first element with dv-type.
@@ -381,10 +385,14 @@ DVEdit = {
                     if (selection.anchorNode.parentNode.nextSibling)
                     {
                         var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.nextSibling);
-                        if (dvData.type !== void 0 && dvData.cstart === void 0 && dvData.cend === void 0)
+                        if (dvData.type !== void 0)
                         {
-                            //
-                            this.removeSource(dvData.start, dvData.end);
+                            var rules = Syntax[dvData.type];
+                            if (rules.deleteType === DeleteType_Overlapping)
+                            {
+                                //
+                                this.removeSource(dvData.start, dvData.end);
+                            }
                         }
                     }
                 }
@@ -657,6 +665,7 @@ DVEdit = {
         
         var offset1 = 0;
         var startBlock = xNodes[0];
+        var stillHaveNodes = false;
         
         for (var i = 0; i < xNodes.length; i++)
         {
@@ -707,13 +716,18 @@ DVEdit = {
                     this.removeSource(start, end, false);
                     offset1 -= end-start;
                     cursor2 -= end-start;
+                    stillHaveNodes = true;
+                    break;
+                default:
+                    stillHaveNodes = true;
                     break;
             }
         }
         
         // if end node is the same as start node (type-wise), we can merge.
         if (xNodes[0].type === xNodes[xNodes.length-1].type &&
-            xNodes[0].rules.deleteType !== DeleteType_Overlapping)
+            xNodes[0].rules.deleteType !== DeleteType_Overlapping &&
+            !stillhaveNodes)
         {
             var start = cursor1;
             var end = cursor2;

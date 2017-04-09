@@ -8,6 +8,51 @@ const DeleteType_Overlapping = 0;
 const DeleteType_Empty = 1;
 const DeleteType_Never = 2;
 
+const SyntaxFormatting = {
+    strong: {
+        entry: /\*\*(?=[\s\S]*\*\*)/,
+        exit: /\*\*/,
+        sort: 70
+    },
+    emphasis: {
+        entry: /\/\/(?=[\s\S]*\/\/)/,
+        exit: /\/\//,
+        sort: 80
+    }
+};
+
+function Syntax_Formatting(type) {
+    var cobj = {};
+    var tpl = SyntaxFormatting[type];
+    cobj.allowedModes = PARSER_MODES.formatting.filter(function(e){ return (e !== type); });
+    cobj.allowedModes = cobj.allowedModes.concat(PARSER_MODES.substition).concat(PARSER_MODES.disabled);
+    cobj.sort = tpl.sort;
+    cobj.connectTo = function(mode) {
+        if (mode === type)
+            return;
+        this.Lexer.addEntryPattern(tpl.entry, mode, type);
+    };
+    cobj.postConnect = function() {
+        this.Lexer.addExitPattern(tpl.exit, type);
+    };
+    cobj.process = function(match, state, pos, h) {
+        switch (state) {
+            case DOKU_LEXER_ENTER:
+                h.output += '<'+type+'>';
+                break;
+            case DOKU_LEXER_EXIT:
+                h.output += '</'+type+'>';
+                break;
+            case DOKU_LEXER_UNMATCHED:
+                console.log(match);
+                h.output += h._makeParagraphs(match.replace(/\n/g, '&nbsp;'), pos);
+                break;
+        }
+        return true;
+    };
+    return cobj;
+}
+
 const Syntax = {
     base: {
         allowedModes: PARSER_MODES.container
@@ -45,29 +90,36 @@ const Syntax = {
         },
         
         deleteType: DeleteType_Overlapping
-    }
+    },
+    
+    strong: Syntax_Formatting('strong'),
+    emphasis: Syntax_Formatting('emphasis')
 };
  
 // these are all utility functions to help moving away from DW PHP-style parser
 // list of supported modes. 
 function Parser_GetModes() {
-    return ['listblock','preformatted','notoc','nocache',
-        'header','table','linebreak','footnote','hr',
-        'unformatted','php','html','code','file','quote',
-        'internallink','rss','media','externallink',
-        'emaillink','windowssharelink','eol'];
+     var modes = Object.getOwnPropertyNames(Syntax).sort(function(a, b) {
+        a = Syntax[a].sort;
+        b = Syntax[b].sort;
+        if (a < b) return 1;
+        if (a > b) return -1;
+        return 0;
+    });
+    return modes;
 }
 
 function Parser_CreateMode(name) {
-    const cls = Syntax[name];
+    var cls = Syntax[name];
     if (!cls) return null;
     
-    const obj = Parser_Mode();
+    var obj = Parser_Mode();
     
     if (cls.connectTo)
         obj.connectTo = cls.connectTo;
     if (cls.sort !== void 0)
         obj.getSort = function() { return cls.sort; }
+    else obj.getSort = function() { return 0; }
     if (cls.preConnect)
         obj.preConnect = cls.preConnect;
     if (cls.postConnect)
@@ -86,7 +138,7 @@ function Parser_CreateMode(name) {
 }
 
 function Parser_GetMode(name) {
-    const obj = Parser_CreateMode(name);
+    var obj = Parser_CreateMode(name);
     if (!obj) return null;
     
     return {
@@ -102,6 +154,7 @@ function Parser_Mode() {
         Lexer: void 0,
         allowedModes: [],
 
+        //getSort: function() { return 0; },
         getSort: void 0,
         preConnect: function() {},
         connectTo: function(mode) {},
