@@ -14,7 +14,7 @@ const SyntaxFormatting = {
         exit: /\*\*/,
         sort: 70
     },
-    em: {
+    emphasis: {
         entry: /\/\/(?=[\s\S]*\/\/)/,
         exit: /\/\//,
         sort: 80
@@ -30,12 +30,16 @@ function Syntax_Formatting(type) {
     cobj.enter = tpl.entry;
     cobj.leave = tpl.exit;
     cobj.process = function(match, state, pos, h) {
+        var tag = {
+            emphasis: 'em',
+            strong: 'strong'
+        }[type];
         switch (state) {
             case DOKU_LEXER_ENTER:
-                h.output += '<'+type+'>';
+                h.output += '<'+tag+'>';
                 break;
             case DOKU_LEXER_EXIT:
-                h.output += '</'+type+'>';
+                h.output += '</'+tag+'>';
                 break;
             case DOKU_LEXER_UNMATCHED:
                 h.output += h._makeParagraphs(match.replace(/\n/g, '\u00A0'), pos);
@@ -92,7 +96,7 @@ const Syntax = {
     },
     
     strong: Syntax_Formatting('strong'),
-    em: Syntax_Formatting('em')
+    emphasis: Syntax_Formatting('emphasis')
 };
  
 // these are all utility functions to help moving away from DW PHP-style parser

@@ -96,7 +96,7 @@ function ParseSingle(text, h) {
         
         // if we are leaving the base mode.
         if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index)) {
-            console.log('exit', exitMatch);
+            //console.log('exit', exitMatch);
             var before = input.substr(0, exitMatch.index);
             baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
             h.pos += before.length;
@@ -112,7 +112,7 @@ function ParseSingle(text, h) {
             var after = input.substr(before.length+firstMatch[0].length);
 
             if (firstMode.leave !== void 0) {
-                console.log('enter', firstMatch);
+                //console.log('enter', firstMatch);
                 if (before.length) {
                     baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
                     h.pos += before.length;
@@ -124,7 +124,7 @@ function ParseSingle(text, h) {
                 
                 modeStack.push(firstModeName);
             } else {
-                console.log('special', firstMatch);
+                //console.log('special', firstMatch);
                 if (before.length) {
                    baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
                     h.pos += before.length;
