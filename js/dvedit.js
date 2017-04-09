@@ -257,6 +257,8 @@ DVEdit = {
             }
             else if (dvData.cstart === void 0 || dvData.cend === void 0)
             {
+                // make sure that we can edit text after and before block elements.
+                var xNode0 = xNode.previousSibling;
                 var xNode1 = xNode.nextSibling;
                 if (xNode1 && xNode1.getAttribute)
                 {
@@ -273,6 +275,28 @@ DVEdit = {
                         span.textContent = '\u200b';
                         xNode1.parentNode.insertBefore(span, xNode1);
                     }
+                }
+                else if (!xNode1)
+                {
+                    var span = document.createElement('span');
+                    span.setAttribute('dv-type', 'base');
+                    span.setAttribute('dv-start', dvData.end);
+                    span.setAttribute('dv-end', dvData.end);
+                    span.setAttribute('dv-cstart', dvData.end);
+                    span.setAttribute('dv-cend', dvData.end);
+                    span.textContent = '\u200b';
+                    xNode.parentNode.appendChild(span);
+                }
+                if (!xNode0)
+                {
+                    var span = document.createElement('span');
+                    span.setAttribute('dv-type', 'base');
+                    span.setAttribute('dv-start', dvData.start);
+                    span.setAttribute('dv-end', dvData.start);
+                    span.setAttribute('dv-cstart', dvData.start);
+                    span.setAttribute('dv-cend', dvData.start);
+                    span.textContent = '\u200b';
+                    xNode.parentNode.insertBefore(span, xNode);
                 }
             }
         }
