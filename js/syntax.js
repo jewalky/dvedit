@@ -11,13 +11,19 @@ const DeleteType_Never = 2;
 const SyntaxFormatting = {
     strong: {
         entry: /\*\*(?=[\s\S]*\*\*)/,
-        exit: /\*\*/,
-        sort: 70
+        exit: /\*\*/
     },
     emphasis: {
         entry: /\/\/(?=[\s\S]*\/\/)/,
-        exit: /\/\//,
-        sort: 80
+        exit: /\/\//
+    },
+    underline: {
+        entry: /__(?=[\s\S]*__)/,
+        exit: /__/
+    },
+    deleted: {
+        entry: /<del>(?=[\s\S]*<\/del>)/,
+        exit: /<\/del>/
     }
 };
 
@@ -26,13 +32,14 @@ function Syntax_Formatting(type) {
     var tpl = SyntaxFormatting[type];
     cobj.allowedModes = PARSER_MODES.formatting.filter(function(e){ return (e !== type); });
     cobj.allowedModes = cobj.allowedModes.concat(PARSER_MODES.substition).concat(PARSER_MODES.disabled);
-    cobj.sort = tpl.sort;
     cobj.enter = tpl.entry;
     cobj.leave = tpl.exit;
     cobj.process = function(match, state, pos, h) {
         var tag = {
             emphasis: 'em',
-            strong: 'strong'
+            strong: 'strong',
+            underline: 'u',
+            deleted: 's'
         }[type];
         switch (state) {
             case DOKU_LEXER_ENTER:
@@ -59,7 +66,6 @@ const Syntax = {
                 .concat(PARSER_MODES.substition)
                 .concat(PARSER_MODES.protected)
                 .concat(PARSER_MODES.disabled),
-        sort: 0,
         
         process: function(match, state, pos, h) {
             switch (state) {
@@ -85,7 +91,6 @@ const Syntax = {
                 .concat(PARSER_MODES.disabled),
                 
         enter: /\x5C{2}(?:[\s\t]|(?=\n))/,
-        sort: 140,
         
         process: function(match, state, pos, h) {
             h.output += '<br '+h._getDVAttrs(pos, pos+match.length, void 0, void 0, 'linebreak')+'>';
@@ -96,68 +101,16 @@ const Syntax = {
     },
     
     strong: Syntax_Formatting('strong'),
-    emphasis: Syntax_Formatting('emphasis')
+    emphasis: Syntax_Formatting('emphasis'),
+    underline: Syntax_Formatting('underline'),
+    deleted: Syntax_Formatting('deleted')
 };
  
 // these are all utility functions to help moving away from DW PHP-style parser
 // list of supported modes. 
 function Parser_GetModes() {
-     var modes = Object.getOwnPropertyNames(Syntax);
+    var modes = Object.getOwnPropertyNames(Syntax);
     return modes;
-}
-
-function Parser_CreateMode(name) {
-    var cls = Syntax[name];
-    if (!cls) return null;
-    
-    var obj = Parser_Mode();
-    
-    if (cls.connectTo)
-        obj.connectTo = cls.connectTo;
-    if (cls.sort !== void 0)
-        obj.getSort = function() { return cls.sort; }
-    else obj.getSort = function() { return 0; }
-    if (cls.preConnect)
-        obj.preConnect = cls.preConnect;
-    if (cls.postConnect)
-        obj.postConnect = cls.postConnect;
-    if (cls.accepts)
-        obj.accepts = cls.accepts;
-    if (cls.init)
-    {
-        obj.init = cls.init;
-        obj.init();
-    }
-    if (cls.allowedModes)
-        obj.allowedModes = cls.allowedModes;
-    
-    return obj;
-}
-
-function Parser_GetMode(name) {
-    var obj = Parser_CreateMode(name);
-    if (!obj) return null;
-    
-    return {
-        sort: obj.getSort(),
-        mode: name,
-        obj: obj
-    };
-}
- 
-// base "constructor"
-function Parser_Mode() {
-    return {
-        Lexer: void 0,
-        allowedModes: [],
-
-        //getSort: function() { return 0; },
-        getSort: void 0,
-        preConnect: function() {},
-        connectTo: function(mode) {},
-        postConnect: function() {},
-        accepts: function(mode) { return this.allowedModes.indexOf(mode) >= 0; }
-    };
 }
 
 // main parser handler.
