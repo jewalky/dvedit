@@ -59,59 +59,74 @@ const PARSER_MODES = {
     paragraphs: ['eol']
 };
 
-function ParseSingle(text, allowedModes, h) {
+function ParseSingle(text, h) {
     var p = Parser_GetModes();
     var input = text;
     
+    var modeStack = ['base'];
+    
     while (input.length) {
+        var baseMode = Syntax[modeStack[modeStack.length-1]];
+        var allowedModes = baseMode.allowedModes;
         // find closest match from modes.
+        var exitMatch = null;
+        if (baseMode.leave !== void 0) {
+            exitMatch = input.match(baseMode.leave);
+        }
+
+        var firstModeName = null;
         var firstMode = null;
         var firstMatch = null;
         p.forEach(function(mode) {
-            if (allowedModes !== void 0 && allowedModes.indexOf(allowedModes) === -1)
+            if (allowedModes !== void 0 && allowedModes.indexOf(mode) === -1)
                 return;
+            var modeName = mode;
             mode = Syntax[mode];
-            if (mode.enter === void 0 || mode.leave === void 0)
+            if (mode.enter === void 0)
                 return;
             var match = input.match(mode.enter);
             if (match) {
                 if (!firstMatch || match.index < firstMatch.index) {
                     firstMatch = match;
                     firstMode = mode;
+                    firstModeName = modeName;
                 }
             }
         });
-
+        
+        // if we are leaving the base mode.
+        if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index)) {
+            console.log('exit', exitMatch);
+            var before = input.substr(0, exitMatch.index);
+            baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+            h.pos += before.length;
+            baseMode.process(exitMatch[0], DOKU_LEXER_EXIT, h.pos, h);
+            h.pos += exitMatch[0].length;
+            input = input.substr(before.length+exitMatch[0].length);
+            modeStack = modeStack.slice(0, modeStack.length-1);
+            continue;
+        }
+        
         if (firstMatch && firstMode) {
             var before = input.substr(0, firstMatch.index);
             var after = input.substr(before.length+firstMatch[0].length);
 
             if (firstMode.leave !== void 0) {
-                var exitMatch = after.match(firstMode.leave);
-                if (!exitMatch) // exit not found... that's bad?
-                {
-                    Syntax['base'].process(before+firstMatch[0], DOKU_LEXER_UNMATCHED, h.pos, h);
-                    h.pos += before+firstMatch[0].length;
-                    input = after;
-                    continue;
-                }
-                
+                console.log('enter', firstMatch);
                 if (before.length) {
-                    Syntax['base'].process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                    baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
                     h.pos += before.length;
                 }
                 
                 firstMode.process(firstMatch[0], DOKU_LEXER_ENTER, h.pos, h);
                 h.pos += firstMatch[0].length;
-                var inner = input.substr(before.length+firstMatch[0].length, exitMatch.index);
-                firstMode.process(inner, DOKU_LEXER_UNMATCHED, h.pos, h);
-                h.pos += inner.length;
-                firstMode.process(exitMatch[0], DOKU_LEXER_EXIT, h.pos, h);
-                h.pos += exitMatch[0].length;
-                input = input.substr(before.length+firstMatch[0].length+inner.length+exitMatch[0].length);
+                input = input.substr(before.length+firstMatch[0].length);
+                
+                modeStack.push(firstModeName);
             } else {
+                console.log('special', firstMatch);
                 if (before.length) {
-                    Syntax['base'].process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                   baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
                     h.pos += before.length;
                 }
                 
@@ -119,8 +134,8 @@ function ParseSingle(text, allowedModes, h) {
                 h.pos += firstMatch[0].length;
                 input = input.substr(before.length+firstMatch[0].length);
             }
-        }else {
-            Syntax['base'].process(input, DOKU_LEXER_UNMATCHED, h.pos, h);
+        } else {
+            baseMode.process(input, DOKU_LEXER_UNMATCHED, h.pos, h);
             input = ''; // break
         }
     }
@@ -129,7 +144,7 @@ function ParseSingle(text, allowedModes, h) {
 function Parse(text) {
     var h = Parser_Handler();
     h.pos = 0;
-    ParseSingle(text, void 0, h);
+    ParseSingle(text, h);
     h._finalize();
     return h.output;
 }

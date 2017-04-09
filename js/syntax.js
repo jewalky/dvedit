@@ -38,7 +38,7 @@ function Syntax_Formatting(type) {
                 h.output += '</'+type+'>';
                 break;
             case DOKU_LEXER_UNMATCHED:
-                h.output += h._makeParagraphs(match.replace(/\n/g, '&nbsp;'), pos);
+                h.output += h._makeParagraphs(match.replace(/\n/g, '\u00A0'), pos);
                 break;
         }
         return true;
