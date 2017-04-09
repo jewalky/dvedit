@@ -27,6 +27,10 @@ const SyntaxFormatting = {
     }
 };
 
+function Syntax_InsertString(s, pos, what) {
+    return s.substr(0, pos)+what+s.substr(pos);
+}
+
 function Syntax_Formatting(type) {
     var cobj = {};
     var tpl = SyntaxFormatting[type];
@@ -34,7 +38,7 @@ function Syntax_Formatting(type) {
     cobj.allowedModes = cobj.allowedModes.concat(PARSER_MODES.substition).concat(PARSER_MODES.disabled);
     cobj.enter = tpl.entry;
     cobj.leave = tpl.exit;
-    cobj.process = function(match, state, pos, h) {
+    cobj.process = function(match, state, pos, h, enterData) {
         var tag = {
             emphasis: 'em',
             strong: 'strong',
@@ -44,15 +48,15 @@ function Syntax_Formatting(type) {
         switch (state) {
             case DOKU_LEXER_ENTER:
                 h.output += '<'+tag+'>';
-                break;
+                return [h.output.length-1, match, pos]; // passed to exit.
             case DOKU_LEXER_EXIT:
+                h.output = Syntax_InsertString(h.output, enterData[0], ' '+h._getDVAttrs(enterData[2], pos+match.length, enterData[2]+enterData[1].length, pos, type));
                 h.output += '</'+tag+'>';
                 break;
             case DOKU_LEXER_UNMATCHED:
                 h.output += h._makeParagraphs(match.replace(/\n/g, '\u00A0'), pos);
                 break;
         }
-        return true;
     };
     return cobj;
 }
@@ -71,7 +75,7 @@ const Syntax = {
             switch (state) {
                 case DOKU_LEXER_UNMATCHED:
                     h.output += h._makeParagraphs(match, pos);
-                    return true;
+                    break;
             }
         }
     },
@@ -94,7 +98,6 @@ const Syntax = {
         
         process: function(match, state, pos, h) {
             h.output += '<br '+h._getDVAttrs(pos, pos+match.length, void 0, void 0, 'linebreak')+'>';
-            return true;
         },
         
         deleteType: DeleteType_Overlapping

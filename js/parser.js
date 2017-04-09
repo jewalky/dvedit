@@ -64,6 +64,7 @@ function ParseSingle(text, h) {
     var input = text;
     
     var modeStack = ['base'];
+    var inputStack = [];
     
     while (input.length) {
         var baseMode = Syntax[modeStack[modeStack.length-1]];
@@ -98,12 +99,15 @@ function ParseSingle(text, h) {
         if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index)) {
             //console.log('exit', exitMatch);
             var before = input.substr(0, exitMatch.index);
-            baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
-            h.pos += before.length;
-            baseMode.process(exitMatch[0], DOKU_LEXER_EXIT, h.pos, h);
+            if (before.length) {
+                baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                h.pos += before.length;
+            }
+            baseMode.process(exitMatch[0], DOKU_LEXER_EXIT, h.pos, h, inputStack[inputStack.length-1]);
             h.pos += exitMatch[0].length;
             input = input.substr(before.length+exitMatch[0].length);
             modeStack = modeStack.slice(0, modeStack.length-1);
+            inputStack = inputStack.slice(0, inputStack.length-1);
             continue;
         }
         
@@ -118,15 +122,15 @@ function ParseSingle(text, h) {
                     h.pos += before.length;
                 }
                 
-                firstMode.process(firstMatch[0], DOKU_LEXER_ENTER, h.pos, h);
+                var d = firstMode.process(firstMatch[0], DOKU_LEXER_ENTER, h.pos, h);
+                inputStack.push(d);
                 h.pos += firstMatch[0].length;
                 input = input.substr(before.length+firstMatch[0].length);
-                
                 modeStack.push(firstModeName);
             } else {
                 //console.log('special', firstMatch);
                 if (before.length) {
-                   baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                    baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
                     h.pos += before.length;
                 }
                 
