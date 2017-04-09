@@ -14,7 +14,7 @@ const SyntaxFormatting = {
         exit: /\*\*/,
         sort: 70
     },
-    emphasis: {
+    em: {
         entry: /\/\/(?=[\s\S]*\/\/)/,
         exit: /\/\//,
         sort: 80
@@ -36,6 +36,7 @@ function Syntax_Formatting(type) {
         this.Lexer.addExitPattern(tpl.exit, type);
     };
     cobj.process = function(match, state, pos, h) {
+        console.log(match, state, pos);
         switch (state) {
             case DOKU_LEXER_ENTER:
                 h.output += '<'+type+'>';
@@ -44,7 +45,6 @@ function Syntax_Formatting(type) {
                 h.output += '</'+type+'>';
                 break;
             case DOKU_LEXER_UNMATCHED:
-                console.log(match);
                 h.output += h._makeParagraphs(match.replace(/\n/g, '&nbsp;'), pos);
                 break;
         }
@@ -93,19 +93,19 @@ const Syntax = {
     },
     
     strong: Syntax_Formatting('strong'),
-    emphasis: Syntax_Formatting('emphasis')
+    em: Syntax_Formatting('em')
 };
  
 // these are all utility functions to help moving away from DW PHP-style parser
 // list of supported modes. 
 function Parser_GetModes() {
-     var modes = Object.getOwnPropertyNames(Syntax).sort(function(a, b) {
+     var modes = Object.getOwnPropertyNames(Syntax)/*.sort(function(a, b) {
         a = Syntax[a].sort;
         b = Syntax[b].sort;
-        if (a < b) return 1;
-        if (a > b) return -1;
+        if (a > b) return 1;
+        if (a < b) return -1;
         return 0;
-    });
+    });*/
     return modes;
 }
 

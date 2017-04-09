@@ -73,16 +73,24 @@ LexerParallelRegex.prototype.split = function(subject, split) {
     if (!this._patterns.length)
         return false;
 
+    subject = subject.replace(/\n/g, '\u0001'); // this is for JS' retarded regex parser that doesn't have multiline flag...
+    
     var matches = subject.match(this._getCompoundedRegex());
     if (!matches) {
         return false;
     }
 
+    for (var i = 0; i < matches.length; i++) {
+        if (typeof(matches[i])==='string')
+            matches[i] = matches[i].replace(/\x01/g, '\n');
+    }
+    
     var idx = matches.length-2;
     var prePost = subject.split(new RegExp(this._patterns[idx], this._getPerlMatchingFlags()), 2);
-    split[0] = prePost[0];
+    
+    split[0] = prePost[0].replace(/\x01/g, '\n');
     split[1] = matches[0];
-    split[2] = prePost.length>1?prePost[1]:'';
+    split[2] = prePost.length>1?prePost[1].replace(/\x01/g, '\n'):'';
 
     if (this._labels[idx] !== void 0)
         return this._labels[idx];
