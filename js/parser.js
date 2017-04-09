@@ -17,6 +17,11 @@
  * }
  */
 
+const DOKU_LEXER_ENTER = 0;
+const DOKU_LEXER_EXIT = 1;
+const DOKU_LEXER_UNMATCHED = 2;
+const DOKU_LEXER_SPECIAL = 3;
+ 
 /**
  * Define various types of modes used by the parser - they are used to
  * populate the list of modes another mode accepts
@@ -54,88 +59,79 @@ const PARSER_MODES = {
     paragraphs: ['eol']
 };
 
-function Parser() {
-    this.Handler = void 0;
-    this.Lexer = void 0;
-    this.modes = {};
-    this.connected = false;
-}
+function ParseSingle(text, allowedModes, h) {
+    var p = Parser_GetModes();
+    var input = text;
+    
+    while (input.length) {
+        // find closest match from modes.
+        var firstMode = null;
+        var firstMatch = null;
+        p.forEach(function(mode) {
+            if (allowedModes !== void 0 && allowedModes.indexOf(allowedModes) === -1)
+                return;
+            mode = Syntax[mode];
+            if (mode.enter === void 0 || mode.leave === void 0)
+                return;
+            var match = input.match(mode.enter);
+            if (match) {
+                if (!firstMatch || match.index < firstMatch.index) {
+                    firstMatch = match;
+                    firstMode = mode;
+                }
+            }
+        });
 
-Parser.prototype.addBaseMode = function(BaseMode) {
-    this.modes['base'] = BaseMode;
-    if (!this.Lexer)
-        this.Lexer = new Lexer(this.Handler, 'base', true);
-    this.modes['base'].Lexer = this.Lexer;
-};
+        if (firstMatch && firstMode) {
+            var before = input.substr(0, firstMatch.index);
+            var after = input.substr(before.length+firstMatch[0].length);
 
-Parser.prototype.addMode = function(name, Mode) {
-    // note: original function comment says this:
-    //     /**
-    //      * PHP preserves order of associative elements
-    //      * Mode sequence is important
-    //      */
-
-    if (!this.modes['base'])
-        this.addBaseMode(Parser_CreateMode('base'));
-    Mode.Lexer = this.Lexer;
-    this.modes[name] = Mode;
-};
-
-Parser.prototype.connectModes = function() {
-    if (this.connected)
-        return;
-
-    const ownProps = Object.getOwnPropertyNames(this.modes);
-    for (var i = 0; i < ownProps.length; i++) {
-        const mode = ownProps[i];
-        if (mode === 'base')
-            continue;
-        this.modes[mode].preConnect();
-        for (var j = 0; j < ownProps.length; j++) {
-            const cm = ownProps[j];
-            if (this.modes[cm].accepts(mode))
-                this.modes[mode].connectTo(cm);
+            if (firstMode.leave !== void 0) {
+                var exitMatch = after.match(firstMode.leave);
+                if (!exitMatch) // exit not found... that's bad?
+                {
+                    Syntax['base'].process(before+firstMatch[0], DOKU_LEXER_UNMATCHED, h.pos, h);
+                    h.pos += before+firstMatch[0].length;
+                    input = after;
+                    continue;
+                }
+                
+                if (before.length) {
+                    Syntax['base'].process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                    h.pos += before.length;
+                }
+                
+                firstMode.process(firstMatch[0], DOKU_LEXER_ENTER, h.pos, h);
+                h.pos += firstMatch[0].length;
+                var inner = input.substr(before.length+firstMatch[0].length, exitMatch.index);
+                firstMode.process(inner, DOKU_LEXER_UNMATCHED, h.pos, h);
+                h.pos += inner.length;
+                firstMode.process(exitMatch[0], DOKU_LEXER_EXIT, h.pos, h);
+                h.pos += exitMatch[0].length;
+                input = input.substr(before.length+firstMatch[0].length+inner.length+exitMatch[0].length);
+            } else {
+                if (before.length) {
+                    Syntax['base'].process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                    h.pos += before.length;
+                }
+                
+                firstMode.process(firstMatch[0], DOKU_LEXER_SPECIAL, h.pos, h);
+                h.pos += firstMatch[0].length;
+                input = input.substr(before.length+firstMatch[0].length);
+            }
+        }else {
+            Syntax['base'].process(input, DOKU_LEXER_UNMATCHED, h.pos, h);
+            input = ''; // break
         }
-        this.modes[mode].postConnect();
     }
-
-    this.connected = true;
-};
-
-Parser.prototype.parse = function(doc) {
-    if (this.Lexer) {
-        this.connectModes();
-        //
-        doc = doc.replace(/\r\n/g, '\n');
-        doc += '\u200b'; // magic
-        this.Lexer.parse(doc);
-        this.Handler._finalize();
-        return this.Handler.output;
-    } else {
-        return false;
-    }
-};
-
-function p_get_parsermodes() {
-    const modes = [];
-    // currently only support standard modes.
-    const std_modes = Parser_GetModes();
-    for (var i = 0; i < std_modes.length; i++) {
-        var mode = Parser_GetMode(std_modes[i]);
-        if (!mode) continue;
-        modes.push(mode);
-    }
-    return modes;
 }
 
 function Parse(text) {
-    const modes = p_get_parsermodes();
-    const parser = new Parser();
-    parser.Handler = Parser_Handler(); // this thing is very special
-    for (var i = 0; i < modes.length; i++)
-        parser.addMode(modes[i].mode, modes[i].obj);
-    const p = parser.parse(text);
-    return p;
+    var h = Parser_Handler();
+    h.pos = 0;
+    ParseSingle(text, void 0, h);
+    h._finalize();
+    return h.output;
 }
 
 function Parser_GetDVAttrsFromNode(node) {

@@ -27,16 +27,9 @@ function Syntax_Formatting(type) {
     cobj.allowedModes = PARSER_MODES.formatting.filter(function(e){ return (e !== type); });
     cobj.allowedModes = cobj.allowedModes.concat(PARSER_MODES.substition).concat(PARSER_MODES.disabled);
     cobj.sort = tpl.sort;
-    cobj.connectTo = function(mode) {
-        if (mode === type)
-            return;
-        this.Lexer.addEntryPattern(tpl.entry, mode, type);
-    };
-    cobj.postConnect = function() {
-        this.Lexer.addExitPattern(tpl.exit, type);
-    };
+    cobj.enter = tpl.entry;
+    cobj.leave = tpl.exit;
     cobj.process = function(match, state, pos, h) {
-        console.log(match, state, pos);
         switch (state) {
             case DOKU_LEXER_ENTER:
                 h.output += '<'+type+'>';
@@ -79,10 +72,16 @@ const Syntax = {
     },
     
     linebreak: {
+        allowedModes: PARSER_MODES.container
+                .concat(PARSER_MODES.baseonly)
+                .concat(PARSER_MODES.paragraphs)
+                .concat(PARSER_MODES.formatting)
+                .concat(PARSER_MODES.substition)
+                .concat(PARSER_MODES.protected)
+                .concat(PARSER_MODES.disabled),
+                
+        enter: /\x5C{2}(?:[\s\t]|(?=\n))/,
         sort: 140,
-        connectTo: function(mode) {
-            this.Lexer.addSpecialPattern(/\x5C{2}(?:[\s\t]|(?=\n))/, mode, 'linebreak');
-        },
         
         process: function(match, state, pos, h) {
             h.output += '<br '+h._getDVAttrs(pos, pos+match.length, void 0, void 0, 'linebreak')+'>';
@@ -99,13 +98,7 @@ const Syntax = {
 // these are all utility functions to help moving away from DW PHP-style parser
 // list of supported modes. 
 function Parser_GetModes() {
-     var modes = Object.getOwnPropertyNames(Syntax)/*.sort(function(a, b) {
-        a = Syntax[a].sort;
-        b = Syntax[b].sort;
-        if (a > b) return 1;
-        if (a < b) return -1;
-        return 0;
-    });*/
+     var modes = Object.getOwnPropertyNames(Syntax);
     return modes;
 }
 
