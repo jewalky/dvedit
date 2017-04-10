@@ -320,7 +320,8 @@ DVEdit = {
     {
         if (e.which < 0x20)
             return;
-        if (e.ctrlKey || e.cmdKey)
+        var ctrlDown = (e.ctrlKey || e.cmdKey);
+        if (ctrlDown)
             return;
         
         var ch = String.fromCharCode(e.which);
@@ -372,6 +373,8 @@ DVEdit = {
     visualKeyDown: function(e)
     {
         var c = String.fromCharCode(e.keyCode);
+        
+        var ctrlDown = (e.ctrlKey || e.cmdKey);
         
         // enter key
         if (e.keyCode === 13)
@@ -498,7 +501,7 @@ DVEdit = {
                 }
             }
         }
-        else if (e.ctrlKey) // ctrl+something
+        else if (ctrlDown) // ctrl+something
         {
             if (e.keyCode === 0x11) // ctrl itself.
                 return true;
