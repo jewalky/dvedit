@@ -87,7 +87,7 @@ function Syntax_Formatting(type) {
             }
         });
         
-        document.addEventListener('click', function(e) {
+        dvButton.addEventListener('click', function(e) {
             e.preventDefault();
             return false;
         });
