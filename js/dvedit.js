@@ -717,15 +717,24 @@ DVEdit = {
         all = !!all;
         
         var selection = this.getSelection();
-        var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
-        var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
-        var cursor1 = s1.cursorPosition;
-        var cursor2 = s2.cursorPosition;
-        if (cursor2 < cursor1)
+        
+        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
         {
-            var t = cursor2;
-            cursor2 = cursor1;
-            cursor1 = t;
+            var cursor1 = 0;
+            var cursor2 = this.SourceControl.value.length;
+        }
+        else
+        {
+            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+            var cursor1 = s1.cursorPosition;
+            var cursor2 = s2.cursorPosition;
+            if (cursor2 < cursor1)
+            {
+                var t = cursor2;
+                cursor2 = cursor1;
+                cursor1 = t;
+            }
         }
         
         return this.getNodesBySource(cursor1, cursor2, all);
@@ -793,15 +802,23 @@ DVEdit = {
         // 2. get all elements that fall under this range.
         // 3. process according to the rules.
         
-        var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
-        var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
-        var cursor1 = s1.cursorPosition;
-        var cursor2 = s2.cursorPosition;
-        if (cursor2 < cursor1)
+        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
         {
-            var t = cursor2;
-            cursor2 = cursor1;
-            cursor1 = t;
+            var cursor1 = 0;
+            var cursor2 = this.SourceControl.value.length;
+        }
+        else
+        {
+            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+            var cursor1 = s1.cursorPosition;
+            var cursor2 = s2.cursorPosition;
+            if (cursor2 < cursor1)
+            {
+                var t = cursor2;
+                cursor2 = cursor1;
+                cursor1 = t;
+            }
         }
         
         var currentSource = this.SourceControl.value;
