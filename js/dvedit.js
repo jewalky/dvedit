@@ -320,6 +320,8 @@ DVEdit = {
     {
         if (e.which < 0x20)
             return;
+        if (e.ctrlKey || e.cmdKey)
+            return;
         
         var ch = String.fromCharCode(e.which);
         this.insertSource(ch);
@@ -498,6 +500,9 @@ DVEdit = {
         }
         else if (e.ctrlKey) // ctrl+something
         {
+            if (e.keyCode === 0x11) // ctrl itself.
+                return true;
+                
             if (c === 'C') // allow copy
             {
                 return true;
@@ -868,7 +873,7 @@ DVEdit = {
         // if end node is the same as start node (type-wise), we can merge.
         if (xNodes[0].type === xNodes[xNodes.length-1].type &&
             xNodes[0].rules.deleteType !== DeleteType_Overlapping &&
-            !stillhaveNodes)
+            !stillHaveNodes)
         {
             var start = cursor1;
             var end = cursor2;
