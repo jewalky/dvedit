@@ -249,7 +249,7 @@ DVEdit = {
             if (!xNode.getAttribute)
                 continue;
             var dvData = Parser_GetDVAttrsFromNode(xNode);
-            if (dvData.type === 'base' && !xNode.lastChild)
+            if ((dvData.cstart !== void 0 && dvData.cend !== void 0) && !xNode.lastChild)
             {
                 // insert empty text. this is only visual!
                 var textNode = document.createTextNode('\u200b');
@@ -315,6 +315,44 @@ DVEdit = {
         return false;
     },
     
+    deleteAllEmptyInSelection: function()
+    {
+        var selection = this.getSelection();
+        
+        if (this.isMultiSelection())
+        {
+            // do nothing for now
+        }
+        else
+        {
+            var dvSelL = this.getAllDVParents(selection.focusNode);
+            var dvSel = dvSelL[0];
+            var start, end;
+            // find topmost empty element.
+            for (var i = 0; i < dvSelL.length; i++)
+            {
+                var dvData = Parser_GetDVAttrsFromNode(dvSelL[i]);
+                
+                var rules = Syntax[dvData.type];
+                var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
+                if (dType === DeleteType_Empty && (!i || (dvSelL[i].firstChild===dvSelL[i].lastChild)))
+                {
+                    start = dvData.start;
+                    end = dvData.end;
+                    dvSel = dvSelL[i];
+                }
+                else break;
+            }
+            
+            var currentSource = this.SourceControl.value;
+            currentSource = currentSource.substr(0, start)+currentSource.substr(end);
+            this.SourceControl.value = currentSource;
+            
+            this.sourceInputChanged(true);
+            this.setCursorToSource(start);
+        }
+    },
+    
     visualKeyDown: function(e)
     {
         var c = String.fromCharCode(e.keyCode);
@@ -347,14 +385,25 @@ DVEdit = {
                     // find first element with dv-type.
                     var dvSel = this.getFirstDVParent(selection.focusNode);
                     var dvData = Parser_GetDVAttrsFromNode(dvSel);
-                    var cursorPosition = selection.focusOffset+dvData.cstart;
                     
-                    var currentSource = this.SourceControl.value;
-                    currentSource = currentSource.substr(0, cursorPosition-1)+currentSource.substr(cursorPosition);
-                    this.SourceControl.value = currentSource;
+                    var rules = Syntax[dvData.type];
+                    var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
                     
-                    this.sourceInputChanged(true);
-                    this.setCursorToSource(cursorPosition-1);
+                    if (dType === DeleteType_Empty && selection.anchorNode.textContent.length === 1)
+                    {
+                        this.deleteAllEmptyInSelection();
+                    }
+                    else
+                    {
+                        var cursorPosition = selection.focusOffset+dvData.cstart;
+                        
+                        var currentSource = this.SourceControl.value;
+                        currentSource = currentSource.substr(0, cursorPosition-1)+currentSource.substr(cursorPosition);
+                        this.SourceControl.value = currentSource;
+                        
+                        this.sourceInputChanged(true);
+                        this.setCursorToSource(cursorPosition-1);
+                    }
                 }
                 else
                 {
@@ -393,14 +442,25 @@ DVEdit = {
                     // find first element with dv-type.
                     var dvSel = this.getFirstDVParent(selection.focusNode);
                     var dvData = Parser_GetDVAttrsFromNode(dvSel);
-                    var cursorPosition = selection.focusOffset+dvData.cstart;
                     
-                    var currentSource = this.SourceControl.value;
-                    currentSource = currentSource.substr(0, cursorPosition)+currentSource.substr(cursorPosition+1);
-                    this.SourceControl.value = currentSource;
+                    var rules = Syntax[dvData.type];
+                    var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
                     
-                    this.sourceInputChanged(true);
-                    this.setCursorToSource(cursorPosition);
+                    if (dType === DeleteType_Empty && selection.anchorNode.textContent.length === 1)
+                    {
+                        this.deleteAllEmptyInSelection();
+                    }
+                    else
+                    {
+                        var cursorPosition = selection.focusOffset+dvData.cstart;
+                        
+                        var currentSource = this.SourceControl.value;
+                        currentSource = currentSource.substr(0, cursorPosition)+currentSource.substr(cursorPosition+1);
+                        this.SourceControl.value = currentSource;
+                        
+                        this.sourceInputChanged(true);
+                        this.setCursorToSource(cursorPosition);
+                    }
                 }
                 else
                 {

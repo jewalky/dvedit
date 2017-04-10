@@ -38,6 +38,7 @@ function Syntax_Formatting(type) {
     cobj.allowedModes = cobj.allowedModes.concat(PARSER_MODES.substition).concat(PARSER_MODES.disabled);
     cobj.enter = tpl.entry;
     cobj.leave = tpl.exit;
+    cobj.deleteType = DeleteType_Empty;
     cobj.process = function(match, state, pos, h, enterData) {
         var tag = {
             emphasis: 'em',
