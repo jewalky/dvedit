@@ -62,3 +62,55 @@
 {
     white-space: pre-wrap;
 }
+
+.dv-panel
+{
+    background: #f7f7f7;
+    padding: 4px;
+}
+
+.dv-panel-group
+{
+    background: #eee;
+    display: inline-block;
+    padding: 3px;
+    border-radius: 3px;
+}
+
+.dv-panel-button
+{
+    background: #d7d7d7;
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin: 2px;
+    min-width: 24px;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.dv-panel-button:link, .dv-panel-button:visited, .dv-panel-button:link:hover
+{
+    color: black;
+    text-decoration: none;
+}
+
+.dv-panel-button:hover
+{
+    background: #ccc;
+}
+
+.dv-panel-button-active
+{
+    background: #aaa;
+}
+
+.dv-panel-button-active:hover
+{
+    background: #999;
+}
+
+.dv-panel-button:active
+{
+    background: #888;
+}

@@ -71,10 +71,23 @@ DVEdit = {
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
-        document.addEventListener('selectionchange', function(e) { return DVEdit.selectionChanged(e); });
+        document.addEventListener('selectionchange', function(e) { return DVEdit.selectionChanged(e);});
         
         this.Control.addEventListener('paste', function(e){return DVEdit.visualPaste(e);});
         this.Control.addEventListener('cut', function(e){return DVEdit.visualCut(e);});
+       
+        var dvPanel = document.querySelector('.dv-panel');
+        SyntaxControls.forEach(function(group) {
+            var dvGroup = document.createElement('div');
+            dvGroup.setAttribute('class', 'dv-panel-group');
+            dvPanel.appendChild(dvGroup);
+            group.forEach(function(element) {
+                var s = Syntax[element];
+                if (!s.createControl)
+                    return;
+                s.createControl(dvGroup);
+            });
+        });
        
         //
         this.sourceInputChanged();
@@ -94,7 +107,8 @@ DVEdit = {
         if (!this.handleSelection)
             return;
         
-        //return; // todo fix
+        if (!this.isSelectionInEditor())
+            return;
         
         function checkParentDVType(node, type)
         {
@@ -542,6 +556,21 @@ DVEdit = {
         return false;
     },
 
+    isSelectionInEditor: function()
+    {
+        function checkParent(e, p) {
+            while (e && e !== document) {
+                if (e === p)
+                    return true;
+                e = e.parentNode;
+            }
+            return false;
+        }
+        
+        var selection = this.getSelection();
+        return checkParent(selection.focusNode, this.Control) && checkParent(selection.anchorNode, this.Control);
+    },
+    
     isMultiSelection: function()
     {
         var selection = this.getSelection();
@@ -678,18 +707,11 @@ DVEdit = {
         };
     },
     
-    // removes currently selected block.
-    removeSelection: function(doUndoRedo)
+    getNodesBySelection: function(all)
     {
-        if (!this.isMultiSelection())
-            return;
+        all = !!all;
         
         var selection = this.getSelection();
-        
-        // 1. get source location of start and end of selection.
-        // 2. get all elements that fall under this range.
-        // 3. process according to the rules.
-        
         var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
         var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
         var cursor1 = s1.cursorPosition;
@@ -701,8 +723,12 @@ DVEdit = {
             cursor1 = t;
         }
         
-        var currentSource = this.SourceControl.value;
-        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
+        return this.getNodesBySource(cursor1, cursor2, all);
+    },
+    
+    getNodesBySource: function(cursor1, cursor2, all)
+    {
+        all = !!all;
         
         var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
         var xNode;
@@ -716,7 +742,7 @@ DVEdit = {
                 continue;
             if (dvData.cstart !== void 0 && dvData.cend !== void 0)
             {
-                if (xNode.firstChild.nodeType !== Node.TEXT_NODE)
+                if ((xNode.firstChild.nodeType !== Node.TEXT_NODE) && !all)
                     continue;
                 if (dvData.cstart > cursor2 || dvData.cend < cursor1)
                     continue;
@@ -746,6 +772,37 @@ DVEdit = {
             }
             return 0;
         });
+        
+        return xNodes;
+    },
+    
+    // removes currently selected block.
+    removeSelection: function(doUndoRedo)
+    {
+        if (!this.isMultiSelection())
+            return;
+        
+        var selection = this.getSelection();
+        
+        // 1. get source location of start and end of selection.
+        // 2. get all elements that fall under this range.
+        // 3. process according to the rules.
+        
+        var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+        var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+        var cursor1 = s1.cursorPosition;
+        var cursor2 = s2.cursorPosition;
+        if (cursor2 < cursor1)
+        {
+            var t = cursor2;
+            cursor2 = cursor1;
+            cursor1 = t;
+        }
+        
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
+        
+        var xNodes = this.getNodesBySource(cursor1, cursor2);
         
         var offset1 = 0;
         var startBlock = xNodes[0];

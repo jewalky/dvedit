@@ -59,9 +59,49 @@ function Syntax_Formatting(type) {
                 break;
         }
     };
+    
+    // GUI
+    cobj.createControl = function(parent) {
+        var dvButton = document.createElement('a');
+        dvButton.setAttribute('class', 'dv-panel-button');
+        dvButton.setAttribute('href', '#');
+        
+        var title = {
+            emphasis: '<i>I</i>',
+            strong: '<b>B</b>',
+            underline: '<u>U</u>',
+            deleted: '<s>S</s>'
+        }[type];
+        
+        dvButton.innerHTML = title;
+        parent.appendChild(dvButton);
+        
+        document.addEventListener('selectionchange', function(e) {
+            if (!DVEdit.isSelectionInEditor())
+                return;
+            var xNodes = DVEdit.getNodesBySelection(true);
+            dvButton.setAttribute('class', 'dv-panel-button');
+            for (var i = 0; i < xNodes.length; i++) {
+                if (xNodes[i].type === type)
+                    dvButton.setAttribute('class', 'dv-panel-button dv-panel-button-active');
+            }
+        });
+        
+        document.addEventListener('click', function(e) {
+            e.preventDefault();
+            return false;
+        });
+    };
+    
     return cobj;
 }
 
+// this specifies the buttons that are available for syntax.
+const SyntaxControls = [
+    ['strong', 'emphasis', 'underline', 'deleted']
+];
+
+// this specifies syntax handlers.
 const Syntax = {
     base: {
         allowedModes: PARSER_MODES.container
