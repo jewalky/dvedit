@@ -76,7 +76,7 @@ function Syntax_Formatting(type) {
         dvButton.innerHTML = title;
         parent.appendChild(dvButton);
         
-        document.addEventListener('selectionchange', function(e) {
+        document.addEventListener('dv-selectionchange', function(e) {
             if (!DVEdit.isSelectionInEditor())
                 return;
             var xNodes = DVEdit.getNodesBySelection(true);

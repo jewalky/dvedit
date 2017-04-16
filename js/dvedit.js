@@ -63,6 +63,15 @@ DVEdit = {
     
     init: function()
     {
+        // init magic.
+        document.addEventListener('keydown', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('keyup', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('keypress', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('mousemove', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('mousedown', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('mouseup', function(e) { DVEdit.compatCheckSelection(); });
+        document.addEventListener('selectstart', function(e) { DVEdit.compatCheckSelection(); });
+        
         this.SourceControl = document.querySelector('.dv-sourcecode');
         this.Control = document.querySelector('.dv-visualframe');
         
@@ -71,7 +80,7 @@ DVEdit = {
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
-        document.addEventListener('selectionchange', function(e) { return DVEdit.selectionChanged(e);});
+        document.addEventListener('dv-selectionchange', function(e) {return DVEdit.selectionChanged(e);});
         
         this.Control.addEventListener('paste', function(e){return DVEdit.visualPaste(e);});
         this.Control.addEventListener('cut', function(e){return DVEdit.visualCut(e);});
@@ -316,6 +325,36 @@ DVEdit = {
         }
     },
     
+    triggerSelectionChange: function(e)
+    {
+        var selChange = document.createEvent('CustomEvent'); // https://habrahabr.ru/post/229189/#comment_7763483 - don't really want to check if it's true.
+        selChange.initCustomEvent('dv-selectionchange', false, false, {});
+        document.dispatchEvent(selChange);
+    },
+    
+    compatOldSelection: void 0,
+    compatCheckSelection: function(e)
+    {
+        var sel = this.getSelection();
+        if (this.compatOldSelection === void 0)
+        {
+            this.compatOldSelection = sel;
+            this.triggerSelectionChange();
+        }
+        else
+        {
+            var sel2 = this.compatOldSelection;
+            if (sel.anchorNode !== sel2.anchorNode ||
+                sel.anchorOffset !== sel2.anchorOffset ||
+                sel.focusNode !== sel2.focusNode ||
+                sel.focusOffset !== sel2.focusOffset)
+            {
+                this.compatOldSelection = sel;
+                this.triggerSelectionChange();
+            }
+        }
+    },
+    
     visualKeyPress: function(e)
     {
         if (e.which < 0x20)
@@ -535,6 +574,10 @@ DVEdit = {
             {
                 return true;
             }
+            else if (e.keyCode >= 33 && e.keyCode <= 40) // allow ctrl+arrows, pgup/pgdn/end/home
+            {
+                return true;
+            }
         }
         else return true;
         
@@ -662,6 +705,8 @@ DVEdit = {
         var selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
+        if (this.handleSelection)
+            this.triggerSelectionChange();
     },
     
     setCursorToSource: function(index)
@@ -764,7 +809,15 @@ DVEdit = {
                 if (dvData.cstart > cursor2 || dvData.cend < cursor1)
                     continue;
                 var dvParent = this.getAllDVParents(xNode);
-                dvData.type = Parser_GetDVAttrsFromNode(dvParent[1]).type;
+                var dvDataP = Parser_GetDVAttrsFromNode(dvParent[1]);
+                dvData.type = dvDataP.type;
+                dvData.rstart = dvDataP.start;
+                dvData.rend = dvDataP.end; // real start/end for deletion of whole formats.
+            }
+            else
+            {
+                dvData.rstart = dvData.start;
+                dvData.rend = dvData.end;
             }
             
             var rules = Syntax[dvData.type];
@@ -845,9 +898,9 @@ DVEdit = {
             {
                 case DeleteType_Overlapping:
                     // just remove the node entirely.
-                    this.removeSource(dvData.start+offset1, dvData.end+offset1, false);
-                    offset1 -= dvData.end-dvData.start;
-                    cursor2 -= dvData.end-dvData.start;
+                    this.removeSource(dvData.rstart+offset1, dvData.rend+offset1, false);
+                    offset1 -= dvData.rend-dvData.rstart;
+                    cursor2 -= dvData.rend-dvData.rstart;
                     break;
                 case DeleteType_Empty:
                     if (!hasContent)
@@ -858,11 +911,11 @@ DVEdit = {
                     var isEmpty = (start === dvData.cstart && end === dvData.cend);
                     start += offset1;
                     end += offset1;
-                    if (isEmpty && dvData != startBlock)
+                    if (isEmpty && (dvData !== startBlock || dvData.type !== 'paragraph'))
                     {
-                        this.removeSource(dvData.start+offset1, dvData.end+offset1, false);
-                        offset1 -= dvData.end-dvData.start;
-                        cursor2 -= dvData.end-dvData.start;
+                        this.removeSource(dvData.rstart+offset1, dvData.rend+offset1, false);
+                        offset1 -= dvData.rend-dvData.rstart;
+                        cursor2 -= dvData.rend-dvData.rstart;
                     }
                     else
                     {
@@ -890,16 +943,19 @@ DVEdit = {
             }
         }
         
-        // if end node is the same as start node (type-wise), we can merge.
-        if (xNodes[0].type === xNodes[xNodes.length-1].type &&
-            xNodes[0].rules.deleteType !== DeleteType_Overlapping &&
-            !stillHaveNodes)
+        if (xNodes.length > 1)
         {
-            var start = cursor1;
-            var end = cursor2;
-            this.removeSource(start, end, false);
-            offset1 -= end-start;
-            cursor2 -= end-start;
+            // if end node is the same as start node (type-wise), we can merge.
+            if (xNodes[0].type === xNodes[xNodes.length-1].type &&
+                xNodes[0].rules.deleteType !== DeleteType_Overlapping &&
+                !stillHaveNodes)
+            {
+                var start = cursor1;
+                var end = cursor2;
+                this.removeSource(start, end, false);
+                offset1 -= end-start;
+                cursor2 -= end-start;
+            }
         }
         
         this.setCursorToSource(cursor1);
@@ -1011,7 +1067,13 @@ DVEdit = {
         form_main.submit();
     },
     
-    save: function()
+    // this function removes mode from specified range (by source location)
+    unwrapFormat: function(mode, start, end)
+    {
+        
+    },
+    
+    wrapFormat: function(mode, start, end)
     {
         
     }
