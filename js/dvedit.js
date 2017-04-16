@@ -261,11 +261,9 @@ DVEdit = {
         this.Control.innerHTML = parsed;
         
         // fix some things for editing.
-        var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
+        var xSearch 
         var xNode = void 0;
-        var xNodes = [];
-        while (xNode = xSearch.iterateNext())
-            xNodes.push(xNode); // iterator will fail if the DOM changes. so first collect, then change.
+        var xNodes = this.Control.querySelectorAll('*');
         for (var i = 0; i < xNodes.length; i++)
         {
             xNode = xNodes[i];
@@ -635,7 +633,7 @@ DVEdit = {
     // this function retrieves first parent element with dv-type.
     getFirstDVParent: function(base)
     {
-        while (base && base != this.Control)
+        while (base && base !== this.Control)
         {
             if (base.getAttribute && base.getAttribute('dv-type') !== void 0)
                 return base;
@@ -649,7 +647,7 @@ DVEdit = {
     getAllDVParents: function(base)
     {
         var list = [];
-        while (base && base != this.Control)
+        while (base && base !== this.Control)
         {
             if (base.getAttribute && base.getAttribute('dv-type') !== void 0)
                 list.push(base);
@@ -659,17 +657,40 @@ DVEdit = {
         return list;
     },
     
+    getAllDVChildren: function(base)
+    {
+        var list = [];
+        if (base.nodeType === Node.TEXT_NODE)
+            return list;
+        
+        base = base.firstChild;
+        while (base)
+        {
+            if (base.nodeType !== Node.TEXT_NODE && base.hasAttribute('dv-type'))
+                list.push(base);
+            list = list.concat(this.getAllDVChildren(base));
+            base = base.nextSibling;
+        }
+        
+        return list;
+    },
+    
     // this retrieves DV node by source location
     getDVNodeBySource: function(index)
     {
-        var xSearch = document.evaluate('.//*[@dv-type and @dv-cstart and @dv-cend and not(.//*[@dv-type])]', this.Control, null, XPathResult.ANY_TYPE, null);
-        var xNode = void 0;
+        var xNodes = this.Control.querySelectorAll('*[dv-type][dv-cstart][dv-cend]');
         var xMin = 0;
         var xMax = 2147483647;
         var xOutNode = void 0;
 
-        while (xNode = xSearch.iterateNext())
+        for (var i = 0; i < xNodes.length; i++)
         {
+            var xNode = xNodes[i];
+            if (xNode.firstChild.nodeType !== Node.TEXT_NODE)
+                continue;
+            if (this.getAllDVChildren(xNode).length)
+                continue;
+            
             var attrs = Parser_GetDVAttrsFromNode(xNode);
             if (attrs.cstart === void 0 || attrs.cend === void 0) // not editable element
                 continue;
@@ -792,11 +813,12 @@ DVEdit = {
     {
         all = !!all;
         
-        var xSearch = document.evaluate('.//*', this.Control, null, XPathResult.ANY_TYPE, null);
         var xNode;
         var xNodes = [];
-        while (xNode = xSearch.iterateNext())
+        var xNodes2 = this.Control.querySelectorAll('*');
+        for (var i = 0; i < xNodes2.length; i++)
         {
+            var xNode = xNodes2[i];
             var dvData = Parser_GetDVAttrsFromNode(xNode);
             if (!dvData.type)
                 continue;
