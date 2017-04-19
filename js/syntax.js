@@ -88,6 +88,16 @@ function Syntax_Formatting(type) {
         });
         
         dvButton.addEventListener('click', function(e) {
+            var active = dvButton.getAttribute('class').indexOf('dv-panel-button-active')!==-1;
+            if (active)
+            {
+                DVEdit.removeTagInSelection(type);
+            }
+            else
+            {
+                // todo: add tag
+            }
+            
             e.preventDefault();
             return false;
         });
