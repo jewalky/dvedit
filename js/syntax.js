@@ -201,14 +201,19 @@ function Parser_Handler() {
             attrs.end = attrs.cend = void 0;
             for (var i = 0; i < nodes.length; i++) {
                 var nodeAttrs = Parser_GetDVAttrsFromNode(nodes[i]);
+                
                 if (nodeAttrs.start !== void 0 &&
                     (attrs.start === void 0 || nodeAttrs.start < attrs.start)) attrs.start = nodeAttrs.start;
-                if (nodeAttrs.cstart !== void 0 &&
-                    (attrs.cstart === void 0 || nodeAttrs.cstart < attrs.cstart)) attrs.cstart = nodeAttrs.cstart;
                 if (nodeAttrs.end !== void 0 &&
                     (attrs.end === void 0 || nodeAttrs.end > attrs.end)) attrs.end = nodeAttrs.end;
+                
+                var mincstart = Math.min(nodeAttrs.start, nodeAttrs.cstart);
+                var maxcend = Math.max(nodeAttrs.end, nodeAttrs.cend);
+                
+                if (nodeAttrs.cstart !== void 0 &&
+                    (attrs.cstart === void 0 || mincstart < attrs.cstart)) attrs.cstart = mincstart;
                 if (nodeAttrs.cend !== void 0 &&
-                    (attrs.cend === void 0 || nodeAttrs.cend > attrs.cend)) attrs.cend = nodeAttrs.cend;
+                    (attrs.cend === void 0 || maxcend > attrs.cend)) attrs.cend = maxcend;
             }
             return attrs;
         },

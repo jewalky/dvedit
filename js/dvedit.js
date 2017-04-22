@@ -698,18 +698,47 @@ DVEdit = {
                 continue;
             
             var attrs = Parser_GetDVAttrsFromNode(xNode);
-            if (attrs.cstart === void 0 || attrs.cend === void 0) // not editable element
+
+            var cstarts = [attrs.cstart];
+            var cends = [attrs.cend];
+            
+            var p = xNode.parentNode;
+            while (p && p !== this.Control)
+            {
+                var attrs2 = Parser_GetDVAttrsFromNode(p);
+                cstarts.push(attrs2.cstart);
+                
+                if (p.parentNode.firstChild === p)
+                    p = p.parentNode;
+                else break;
+            }
+            
+            p = xNode.parentNode;
+            while (p && p !== this.Control)
+            {
+                var attrs2 = Parser_GetDVAttrsFromNode(p);
+                cends.push(attrs2.cend);
+                
+                if (p.parentNode.lastChild === p)
+                    p = p.parentNode;
+                else break;
+            }
+            
+            var cstart = cstarts.sort(function(a,b){ return Math.sign(a-b); })[0];
+            var cend = cends.sort(function(a,b){ return -Math.sign(a-b); })[0];
+            
+            if (cstart === void 0 || cend === void 0) // not editable element
                 continue;
-            if (attrs.cstart > index || attrs.cend < index)
+            if (cstart > index || cend < index)
                 continue;
             
-            if (attrs.cstart === index && attrs.cend === index)
+            if (cstart === index && cend === index)
                 return xNode;
             
-            if (attrs.cstart > xMin || attrs.cend < xMax)
+            if (cstart > xMin || cend < xMax)
             {
-                xMin = attrs.cstart;
-                xMax = attrs.cend;
+                xMin = cstart;
+                xMax = cend;
                 xOutNode = xNode;
             }
         }
@@ -740,8 +769,19 @@ DVEdit = {
     {
         var selection = this.getSelection();
         
+        if (index < 0)
+            index = 0;
+        var maxSource = this.SourceControl.value.length;
+        if (index > maxSource)
+            index = maxSource;
+        
         if (end === void 0)
             end = index;
+        
+        if (end < 0)
+            end = 0;
+        if (end > maxSource)
+            end = maxSource;
         
         var dvSel1 = this.getDVNodeBySource(index);
         var dvSel2 = this.getDVNodeBySource(end);
@@ -1045,6 +1085,7 @@ DVEdit = {
         var offset1 = 0;
         var offset2 = 0;
         
+        /*
         for (var i = 0; i < xNodes.length; i++)
         {
             var parents = this.getAllDVParents(xNodes[i].node);
@@ -1112,8 +1153,151 @@ DVEdit = {
             {
                 for (var j = tag_base; j < tag_pos; j++)
                 {
-                    console.log(parents[j]);
+                    
                 }
+            }
+        }*/
+        
+        var xNodesNew = [];
+        
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            var xNode = xNodes[i].node;
+            while (xNode && xNode !== this.Control && xNode != document.body)
+            {
+                var dvData = Parser_GetDVAttrsFromNode(xNode);
+                dvData.node = xNode;
+                if (dvData.type === tag)
+                {
+                    xNodesNew.push(dvData);
+                    break;
+                }
+                
+                xNode = xNode.parentNode;
+            }
+        }
+        
+        // sort by child node count
+        xNodesNew = xNodesNew.filter(function(xNode) {
+            var dvP = DVEdit.getAllDVParents(xNode);
+            for (var i = 1; i < dvP.length; i++)
+            {
+                for (var j = 0; j < xNodesNew.length; j++)
+                {
+                    if (xNodesNew[j].node === dvP[i]) // have parent in node list
+                        return false;
+                }
+            }
+            
+            return true; // unique node
+        });
+        
+        function splitNodes(xNode, index, parents, doLeft, doRight, coffset)
+        {
+            doLeft = !!doLeft;
+            doRight = !!doRight;
+            
+            for (var c = xNode.firstChild; c; c = c.nextSibling)
+            {
+                var dvData = Parser_GetDVAttrsFromNode(c);
+                // check if this node is even related. might be not.
+                if (dvData.start > index || dvData.end < index)
+                    continue;
+                
+                if (c.firstChild.nodeType === Node.TEXT_NODE)
+                {
+                    // now, actually split. add ending and starting tags for each of the parents, EXCEPT first one (depending on doLeft/doRight)
+                    console.log(parents);
+                    
+                    var inserted = '';
+                    for (var i = 0; i < parents.length; i++)
+                    {
+                        inserted = ((doLeft||i)?parents[i].tagEnd:'')+inserted+((doRight||i)?parents[i].tagStart:'');
+                    }
+                    
+                    currentSource = currentSource.substring(0, index+offset)+inserted+currentSource.substring(index+offset);
+                    offset += inserted.length;
+                    //offset1 += inserted.length;
+                    return;
+                }
+                else
+                {
+                    if (dvData.type !== void 0)
+                    {
+                        var xP = {};
+                        xP.tagStart = currentSource.substring(dvData.start+coffset, dvData.cstart+coffset);
+                        xP.tagEnd = currentSource.substring(dvData.cend+offset, dvData.end+offset);
+                        parents.push(xP);
+                    }
+                    
+                    splitNodes(c, index, parents, doLeft, doRight, coffset);
+                }
+            }
+        }
+        
+        for (var i = 0; i < xNodesNew.length; i++)
+        {
+            var dvData = xNodesNew[i];
+            var xNode = dvData.node;
+            
+            // check if remove on start
+            var bStart = false;
+            var bEnd = false;
+            var xTagStart = currentSource.substring(dvData.start+offset, dvData.cstart+offset);
+            var xTagEnd = currentSource.substring(dvData.cend+offset, dvData.end+offset);
+            
+            var c = xNode.firstChild;
+            while (c)
+            {
+                var dvChild = Parser_GetDVAttrsFromNode(c);
+                if (dvChild.cstart >= cursor1)
+                {
+                    bStart = true;
+                    break;
+                }
+                
+                c = c.firstChild;
+            }
+            
+            c = xNode.lastChild;
+            while (c)
+            {
+                var dvChild = Parser_GetDVAttrsFromNode(c);
+                if (dvChild.cend <= cursor2)
+                {
+                    bEnd = true;
+                    break;
+                }
+                
+                c = c.lastChild;
+            }
+            
+            var coffset = offset;
+            
+            if (bStart)
+            {
+                currentSource = currentSource.substring(0, dvData.start+offset)+currentSource.substring(dvData.cstart+offset);
+                offset -= xTagStart.length;
+                if (dvData.cstart === cursor1)
+                    offset1 -= xTagStart.length;
+            }
+            else
+            {
+                // start in the middle: split child nodes
+                splitNodes(xNode, cursor1, [{tagStart: xTagStart, tagEnd: xTagEnd}], true, false, coffset);
+            }
+            
+            if (bEnd)
+            {
+                currentSource = currentSource.substring(0, dvData.cend+offset)+currentSource.substring(dvData.end+offset);
+                offset -= xTagEnd.length;
+                if (dvData.cend !== cursor2)
+                    offset2 -= xTagEnd.length;
+            }
+            else
+            {
+                // end in the middle: split child nodes
+                splitNodes(xNode, cursor2, [{tagStart: xTagStart, tagEnd: xTagEnd}], false, true, coffset);
             }
         }
         
