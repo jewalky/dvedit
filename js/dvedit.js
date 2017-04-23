@@ -678,72 +678,80 @@ DVEdit = {
     // this retrieves DV node by source location
     getDVNodeBySource: function(index)
     {
-        var xNodes = this.Control.querySelectorAll('*[dv-type][dv-cstart][dv-cend]');
-        var xMin = 0;
-        var xMax = 2147483647;
-        var xOutNode = void 0;
-        
-        var currentSource = this.SourceControl.value;
-        if (index > currentSource.length)
-            index = currentSource.length;
-        if (index < 0)
-            index = 0;
-
-        for (var i = 0; i < xNodes.length; i++)
+        for (var j = 0; j < 2; j++)
         {
-            var xNode = xNodes[i];
-            if (xNode.firstChild.nodeType !== Node.TEXT_NODE)
-                continue;
-            if (this.getAllDVChildren(xNode).length)
-                continue;
+            var invSign = [1, -1][j];
             
-            var attrs = Parser_GetDVAttrsFromNode(xNode);
+            var xNodes = this.Control.querySelectorAll('*[dv-type][dv-cstart][dv-cend]');
+            var xMin = 0;
+            var xMax = 2147483647;
+            var xOutNode = void 0;
+            
+            var currentSource = this.SourceControl.value;
+            if (index > currentSource.length)
+                index = currentSource.length;
+            if (index < 0)
+                index = 0;
 
-            var cstarts = [attrs.cstart];
-            var cends = [attrs.cend];
-            
-            var p = xNode.parentNode;
-            while (p && p !== this.Control)
+            for (var i = 0; i < xNodes.length; i++)
             {
-                var attrs2 = Parser_GetDVAttrsFromNode(p);
-                cstarts.push(attrs2.cstart);
+                var xNode = xNodes[i];
+                if (xNode.firstChild.nodeType !== Node.TEXT_NODE)
+                    continue;
+                if (this.getAllDVChildren(xNode).length)
+                    continue;
                 
-                if (p.parentNode.firstChild === p)
-                    p = p.parentNode;
-                else break;
-            }
-            
-            p = xNode.parentNode;
-            while (p && p !== this.Control)
-            {
-                var attrs2 = Parser_GetDVAttrsFromNode(p);
-                cends.push(attrs2.cend);
+                var attrs = Parser_GetDVAttrsFromNode(xNode);
+
+                var cstarts = [attrs.cstart];
+                var cends = [attrs.cend];
                 
-                if (p.parentNode.lastChild === p)
-                    p = p.parentNode;
-                else break;
+                var p = xNode.parentNode;
+                while (p && p !== this.Control)
+                {
+                    var attrs2 = Parser_GetDVAttrsFromNode(p);
+                    cstarts.push(attrs2.cstart);
+                    
+                    if (p.parentNode.firstChild === p)
+                        p = p.parentNode;
+                    else break;
+                }
+                
+                p = xNode.parentNode;
+                while (p && p !== this.Control)
+                {
+                    var attrs2 = Parser_GetDVAttrsFromNode(p);
+                    cends.push(attrs2.cend);
+                    
+                    if (p.parentNode.lastChild === p)
+                        p = p.parentNode;
+                    else break;
+                }
+                
+                var cstart = cstarts.sort(function(a,b){ return -Math.sign(a-b)*invSign; })[0];
+                var cend = cends.sort(function(a,b){ return Math.sign(a-b)*invSign; })[0];
+                
+                if (cstart === void 0 || cend === void 0) // not editable element
+                    continue;
+                if (cstart > index || cend < index)
+                    continue;
+                
+                if (cstart === index && cend === index)
+                    return xNode;
+                
+                if (cstart > xMin || cend < xMax)
+                {
+                    xMin = cstart;
+                    xMax = cend;
+                    xOutNode = xNode;
+                }
             }
             
-            var cstart = cstarts.sort(function(a,b){ return Math.sign(a-b); })[0];
-            var cend = cends.sort(function(a,b){ return -Math.sign(a-b); })[0];
-            
-            if (cstart === void 0 || cend === void 0) // not editable element
-                continue;
-            if (cstart > index || cend < index)
-                continue;
-            
-            if (cstart === index && cend === index)
-                return xNode;
-            
-            if (cstart > xMin || cend < xMax)
-            {
-                xMin = cstart;
-                xMax = cend;
-                xOutNode = xNode;
-            }
+            if (xOutNode)
+                return xOutNode;
         }
         
-        return xOutNode;
+        return void 0;
     },
     
     getSelection: function()
@@ -1083,102 +1091,49 @@ DVEdit = {
         var xNodes = this.getNodesBySource(cursor1, cursor2);
         var offset = 0;
         var offset1 = 0;
-        var offset2 = 0;
-        
-        /*
-        for (var i = 0; i < xNodes.length; i++)
-        {
-            var parents = this.getAllDVParents(xNodes[i].node);
-            var tag_base = 0;
-            var tag_pos = -1;
-            var tag_data = void 0;
-            for (var j = 0; j < parents.length; j++)
-            {
-                var dvData = Parser_GetDVAttrsFromNode(parents[j]);
-                
-                if (dvData.type === 'base')
-                {
-                    tag_base++;
-                    continue;
-                }
-                
-                if (dvData.type === tag)
-                {
-                    tag_pos = j;
-                    tag_data = dvData;
-                    tag_data.node = parents[j];
-                    break;
-                }
-            }
-            
-            if (tag_pos === -1 || !tag_data)
-                continue; // ignore this node - not related to the tag at all
-            
-            var xNode = tag_data;
-            var xTagStart = currentSource.substring(xNode.start+offset, xNode.cstart+offset);
-            var xTagEnd = currentSource.substring(xNode.cend+offset, xNode.end+offset);
-            
-            if (tag_pos === tag_base) // e.g. tag 1 is the expected one
-            {
-                // end previous tag (or remove, if its at the start)
-                if (xNode.cstart < cursor1)
-                {
-                    currentSource = currentSource.substring(0, cursor1+offset)+xTagEnd+currentSource.substring(cursor1+offset);
-                    offset += xTagEnd.length;
-                    offset1 += xTagEnd.length;
-                }
-                else
-                {
-                    currentSource = currentSource.substring(0, xNode.start+offset)+currentSource.substring(xNode.cstart+offset);
-                    offset -= xTagStart.length;
-                    if (xNode.cstart === cursor1)
-                        offset1 -= xTagStart.length;
-                }
-                
-                // start next tag (or remove, if its at the end)
-                if (xNode.cend > cursor2)
-                {
-                    currentSource = currentSource.substring(0, cursor2+offset)+xTagStart+currentSource.substring(cursor2+offset);
-                    offset += xTagStart.length;
-                }
-                else
-                {
-                    currentSource = currentSource.substring(0, xNode.cend+offset)+currentSource.substring(xNode.end+offset);
-                    offset -= xTagEnd.length;
-                    if (xNode.cend !== cursor2)
-                        offset2 -= xTagEnd.length;
-                }
-            }
-            else
-            {
-                for (var j = tag_base; j < tag_pos; j++)
-                {
-                    
-                }
-            }
-        }*/
-        
         var xNodesNew = [];
         
         for (var i = 0; i < xNodes.length; i++)
         {
             var xNode = xNodes[i].node;
+            var xNodeBase = void 0;
             while (xNode && xNode !== this.Control && xNode != document.body)
             {
                 var dvData = Parser_GetDVAttrsFromNode(xNode);
+                
                 dvData.node = xNode;
-                if (dvData.type === tag)
+                dvData.tagStart = currentSource.substring(dvData.start, dvData.cstart);
+                dvData.tagEnd = currentSource.substring(dvData.cend, dvData.end);
+                
+                if (dvData.type === 'base')
+                    xNodeBase = xNode;
+                else if (dvData.type === tag)
                 {
-                    xNodesNew.push(dvData);
+                    if (xNodeBase && (xNode.firstChild !== xNodeBase || xNode.lastChild !== xNodeBase)) // only do this if we have multiple split base nodes
+                    {
+                        var dvDataReal = Parser_GetDVAttrsFromNode(xNodeBase);
+                        dvData.rcstart = dvDataReal.cstart;
+                        dvData.rcend = dvDataReal.cend;
+                    }
+                    else
+                    {
+                        dvData.rcstart = dvData.cstart;
+                        dvData.rcend = dvData.cend;
+                    }
+                    
+                    if (!xNodesNew.filter(function(xNodeNew) { return xNodeNew.node===xNode||xNodeNew.node===xNodeBase; }).length)
+                        xNodesNew.push(dvData);
+                    
                     break;
                 }
+                else xNodeBase = void 0;
                 
                 xNode = xNode.parentNode;
             }
         }
         
         // sort by child node count
-        xNodesNew = xNodesNew.filter(function(xNode) {
+        xNodesNew = xNodesNew.filter(function(xNode, index, self) {
             var dvP = DVEdit.getAllDVParents(xNode);
             for (var i = 1; i < dvP.length; i++)
             {
@@ -1201,13 +1156,13 @@ DVEdit = {
             {
                 var dvData = Parser_GetDVAttrsFromNode(c);
                 // check if this node is even related. might be not.
-                if (dvData.start > index || dvData.end < index)
+                if (dvData.start > index || dvData.end <= index)
                     continue;
                 
                 if (c.firstChild.nodeType === Node.TEXT_NODE)
                 {
                     // now, actually split. add ending and starting tags for each of the parents, EXCEPT first one (depending on doLeft/doRight)
-                    console.log(parents);
+                    //console.log(parents);
                     
                     var inserted = '';
                     for (var i = 0; i < parents.length; i++)
@@ -1217,7 +1172,7 @@ DVEdit = {
                     
                     currentSource = currentSource.substring(0, index+offset)+inserted+currentSource.substring(index+offset);
                     offset += inserted.length;
-                    //offset1 += inserted.length;
+                    if (doLeft) offset1 += inserted.length;
                     return;
                 }
                 else
@@ -1241,35 +1196,48 @@ DVEdit = {
             var xNode = dvData.node;
             
             // check if remove on start
-            var bStart = false;
-            var bEnd = false;
-            var xTagStart = currentSource.substring(dvData.start+offset, dvData.cstart+offset);
-            var xTagEnd = currentSource.substring(dvData.cend+offset, dvData.end+offset);
+            var bStart = false; var bStartC = false;
+            var bEnd = false; var bEndC = false;
+            var xTagStart = dvData.tagStart;
+            var xTagEnd = dvData.tagEnd;
             
-            var c = xNode.firstChild;
-            while (c)
+            if (dvData.rcstart === dvData.cstart && dvData.rcend === dvData.cend)
             {
-                var dvChild = Parser_GetDVAttrsFromNode(c);
-                if (dvChild.cstart >= cursor1)
+                var c = xNode;//.firstChild;
+                while (c)
                 {
-                    bStart = true;
-                    break;
+                    var dvChild = Parser_GetDVAttrsFromNode(c);
+                    if (dvChild.cstart >= cursor1)
+                    {
+                        bStart = true;
+                        bStartC = (dvChild.cstart === cursor1);
+                        break;
+                    }
+                    
+                    c = c.firstChild;
                 }
                 
-                c = c.firstChild;
+                c = xNode;//.lastChild;
+                while (c)
+                {
+                    var dvChild = Parser_GetDVAttrsFromNode(c);
+                    if (dvChild.cend <= cursor2)
+                    {
+                        bEnd = true;
+                        bEndC = (dvChild.cend === cursor2);
+                        break;
+                    }
+                    
+                    c = c.lastChild;
+                }
             }
-            
-            c = xNode.lastChild;
-            while (c)
+            else
             {
-                var dvChild = Parser_GetDVAttrsFromNode(c);
-                if (dvChild.cend <= cursor2)
-                {
-                    bEnd = true;
-                    break;
-                }
-                
-                c = c.lastChild;
+                // this is a very special case...
+                currentSource = currentSource.substring(0, dvData.rcstart+offset)+xTagEnd+currentSource.substring(dvData.rcstart+offset, dvData.rcend+offset)+xTagStart+currentSource.substring(dvData.rcend+offset);
+                offset += xTagStart.length;
+                offset1 += xTagStart.length;
+                continue;
             }
             
             var coffset = offset;
@@ -1278,7 +1246,8 @@ DVEdit = {
             {
                 currentSource = currentSource.substring(0, dvData.start+offset)+currentSource.substring(dvData.cstart+offset);
                 offset -= xTagStart.length;
-                if (dvData.cstart === cursor1)
+                //if (dvData.cstart === cursor1)
+                if (bStartC)
                     offset1 -= xTagStart.length;
             }
             else
@@ -1291,8 +1260,6 @@ DVEdit = {
             {
                 currentSource = currentSource.substring(0, dvData.cend+offset)+currentSource.substring(dvData.end+offset);
                 offset -= xTagEnd.length;
-                if (dvData.cend !== cursor2)
-                    offset2 -= xTagEnd.length;
             }
             else
             {
@@ -1305,6 +1272,62 @@ DVEdit = {
         this.sourceInputChanged(true);
         this.setHandleSelection(true);
         this.setCursorToSource(cursor1+offset1, cursor2+offset1);
+        return [cursor1+offset1, cursor2+offset1]; // return this in case caller method wants to do anything about it
+    },
+    
+    addTagInSelection: function(tag, start, end, doUndoRedo)
+    {
+        if (!this.isMultiSelection())
+            return;
+        
+        var selection = this.getSelection();
+        
+        // 1. get source location of start and end of selection.
+        // 2. get all elements that fall under this range.
+        // 3. process according to the rules.
+        
+        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
+        {
+            var cursor1 = 0;
+            var cursor2 = this.SourceControl.value.length;
+        }
+        else
+        {
+            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+            var cursor1 = s1.cursorPosition;
+            var cursor2 = s2.cursorPosition;
+            if (cursor2 < cursor1)
+            {
+                var t = cursor2;
+                cursor2 = cursor1;
+                cursor1 = t;
+            }
+        }
+        
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
+        
+        var c = this.removeTagInSelection(tag, false);
+        cursor1 = c[0];
+        cursor2 = c[1];
+        
+        var offset = 0;
+        var offset1 = 0;
+        
+        var xNodes = this.getNodesBySource(cursor1, cursor2);
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            var cstart = Math.max(xNodes[i].cstart, cursor1);
+            var cend = Math.min(xNodes[i].cend, cursor2);
+            currentSource = currentSource.substring(0, cstart+offset)+start+currentSource.substring(cstart, cend)+end+currentSource.substring(cend);
+            offset += start.length+end.length;
+        }
+        
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged(true);
+        this.setHandleSelection(true);
+        this.setCursorToSource(cursor1+start.length, cursor2+offset-end.length);
     },
     
     // removes source code from start to end (exclusive)

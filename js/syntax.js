@@ -95,7 +95,13 @@ function Syntax_Formatting(type) {
             }
             else
             {
-                // todo: add tag
+                var fmt = {
+                    emphasis: ['//', '//'],
+                    strong: ['**', '**'],
+                    underline: ['__', '__'],
+                    deleted: ['<del>', '</del>']
+                }[type];
+                DVEdit.addTagInSelection(type, fmt[0], fmt[1]);
             }
             
             e.preventDefault();
