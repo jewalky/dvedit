@@ -119,8 +119,6 @@ DVEdit = {
         if (!this.isSelectionInEditor())
             return;
         
-        this.nextClear();
-        
         function checkParentDVType(node, type)
         {
             var p = node;
@@ -419,13 +417,46 @@ DVEdit = {
         // enter key
         if (e.keyCode === 13)
         {
-            if (e.shiftKey)
+            var allowLB = true;
+            var s = this.getSelection();
+            var dvP = this.getAllDVParents(s.anchorNode);
+            var modes = [];
+            for (var i = 0; i < dvP.length; i++)
+            {
+                var dvData = Parser_GetDVAttrsFromNode(dvP[i]);
+                
+                if (!!Syntax[dvData.type].noLineBreak)
+                {
+                    allowLB = false;
+                    break;
+                }
+                else
+                {
+                    modes.push(dvData.type);
+                }
+            }
+            
+            if (e.shiftKey || !allowLB) // in tables, you can only do \\ 
             {
                 this.insertSource('\\\\ ');
             }
-            else 
+            else
             {
-                this.insertSource('\n\n');
+                var cursor2 = this.insertSource('\n\n');
+                var cursor1 = cursor2-2;
+                for (var i = 0; i < modes.length; i++)
+                {
+                    // unwrap this part.
+                    var r = this.unwrapFormat(modes[i], cursor1, cursor2);
+                    cursor1 = r[0];
+                    cursor2 = r[1];
+                }
+                this.setCursorToSource(cursor2);
+                for (var i = 0; i < modes.length; i++)
+                {
+                    if (Syntax[modes[i]].formatStart && Syntax[modes[i]].formatEnd)
+                        this.nextAdd(1, modes[i]);
+                }
             }
         }
         else if (e.keyCode === 8) // backspace
@@ -1216,6 +1247,7 @@ DVEdit = {
         
         this.nextClear();
         this.setCursorToSource(cursorPosition);
+        return cursorPosition;
     },
     
     // static form send, to avoid using ajax all over.

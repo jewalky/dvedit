@@ -94,6 +94,11 @@ function Syntax_Formatting(type) {
                 if (xNodes[i].type === type)
                     dvButton.setAttribute('class', 'dv-panel-button dv-panel-button-active');
             }
+            for (var i = 0; i < DVEdit.nextActions.length; i++) {
+                var a = DVEdit.nextActions[i];
+                if (a.action > 0 && a.mode === type)
+                    dvButton.setAttribute('class', 'dv-panel-button dv-panel-button-active');
+            }
         });
         
         dvButton.addEventListener('click', function(e) {
