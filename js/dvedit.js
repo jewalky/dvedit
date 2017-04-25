@@ -452,7 +452,7 @@ DVEdit = {
                     cursor2 = r[1];
                 }
                 this.setCursorToSource(cursor2);
-                for (var i = 0; i < modes.length; i++)
+                for (var i = modes.length-1; i >= 0; i--)
                 {
                     if (Syntax[modes[i]].formatStart && Syntax[modes[i]].formatEnd)
                         this.nextAdd(1, modes[i]);
