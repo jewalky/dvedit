@@ -268,7 +268,7 @@ function Parser_Handler() {
                     inAttrs.start = inAttrs.cstart = pos;
                     inAttrs.end = inAttrs.cend = pos;
                 }
-                var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
+                var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end+2, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
                 output += newS;
                 pos += outS[i].length+2;
             }

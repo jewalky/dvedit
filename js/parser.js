@@ -97,7 +97,6 @@ function ParseSingle(text, h) {
         
         // if we are leaving the base mode.
         if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index)) {
-            //console.log('exit', exitMatch);
             var before = input.substr(0, exitMatch.index);
             if (before.length) {
                 baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);

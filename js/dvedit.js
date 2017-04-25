@@ -262,9 +262,9 @@ DVEdit = {
         this.Control.innerHTML = parsed;
         
         // fix some things for editing.
-        var xSearch 
         var xNode = void 0;
         var xNodes = this.Control.querySelectorAll('*');
+
         for (var i = 0; i < xNodes.length; i++)
         {
             xNode = xNodes[i];
@@ -274,8 +274,32 @@ DVEdit = {
             if ((dvData.cstart !== void 0 && dvData.cend !== void 0) && !xNode.lastChild)
             {
                 // insert empty text. this is only visual!
-                var textNode = document.createTextNode('\u200b');
-                xNode.appendChild(textNode);
+                if (dvData.type !== 'base')
+                {
+                    var span = document.createElement('span');
+                    span.setAttribute('dv-type', 'base');
+                    span.setAttribute('dv-start', dvData.cend);
+                    span.setAttribute('dv-end', dvData.cstart);
+                    span.setAttribute('dv-cstart', dvData.cend);
+                    span.setAttribute('dv-cend', dvData.cstart);
+                    span.textContent = '\u200b';
+                    xNode.appendChild(span);
+                }
+                else
+                {
+                    var textNode = document.createTextNode('\u200b');
+                    xNode.appendChild(textNode);
+                }
+            }
+            else if ((dvData.cstart !== void 0 && dvData.cend !== void 0) && (xNode.firstChild !== xNode.lastChild) && (xNode.lastChild.tagName === 'SPAN'))
+            {
+                if (!xNode.lastChild.firstChild || xNode.lastChild.textContent === '\u200b')
+                    xNode.removeChild(xNode.lastChild);
+            }
+            else if ((dvData.cstart !== void 0 && dvData.cend !== void 0) && (xNode.firstChild !== xNode.lastChild) && (xNode.firstChild.tagName === 'SPAN'))
+            {
+                if (!xNode.firstChild.firstChild || xNode.firstChild.textContent === '\u200b')
+                    xNode.removeChild(xNode.firstChild);
             }
             else if (dvData.cstart === void 0 || dvData.cend === void 0)
             {
@@ -443,6 +467,7 @@ DVEdit = {
             else
             {
                 var cursor2 = this.insertSource('\n\n');
+                var cursor2p = cursor2;
                 var cursor1 = cursor2-2;
                 for (var i = 0; i < modes.length; i++)
                 {
@@ -450,8 +475,9 @@ DVEdit = {
                     var r = this.unwrapFormat(modes[i], cursor1, cursor2);
                     cursor1 = r[0];
                     cursor2 = r[1];
+                    console.log(cursor2-cursor2p)
                 }
-                this.setCursorToSource(cursor2);
+                this.setCursorToSource(cursor2+(cursor2-cursor2p)); // todo: fix magic once I have free time... I don't know how/why this works at all. but it def does.
                 for (var i = modes.length-1; i >= 0; i--)
                 {
                     if (Syntax[modes[i]].formatStart && Syntax[modes[i]].formatEnd)
@@ -797,14 +823,21 @@ DVEdit = {
     
     setSelection: function(sel, noset)
     {
-        var range = document.createRange();
-        range.setStart(sel.anchorNode, Math.min(sel.anchorNode.nodeValue.length, sel.anchorOffset));
-        range.setEnd(sel.focusNode, Math.min(sel.focusNode.nodeValue.length, sel.focusOffset));
-        var selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        if (this.handleSelection)
-            this.triggerSelectionChange();
+        try
+        {
+            var range = document.createRange();
+            range.setStart(sel.anchorNode, Math.min(sel.anchorNode.nodeValue.length, sel.anchorOffset));
+            range.setEnd(sel.focusNode, Math.min(sel.focusNode.nodeValue.length, sel.focusOffset));
+            var selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            if (this.handleSelection)
+                this.triggerSelectionChange();
+        }
+        catch (e)
+        {
+            // ...?
+        }
     },
     
     setCursorToSource: function(index, end)
