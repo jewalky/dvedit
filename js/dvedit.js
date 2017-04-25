@@ -362,7 +362,7 @@ DVEdit = {
             return;
         
         var ch = String.fromCharCode(e.which);
-        this.insertSource(ch);
+        this.insertSource(ch, true, true);
         
         //
         e.preventDefault();
@@ -1088,6 +1088,183 @@ DVEdit = {
         var currentSource = this.SourceControl.value;
         if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
         
+        return this.unwrapFormat(tag, cursor1, cursor2);
+    },
+    
+    addTagInSelection: function(tag, doUndoRedo)
+    {
+        if (!this.isMultiSelection())
+            return;
+        
+        var selection = this.getSelection();
+        
+        // 1. get source location of start and end of selection.
+        // 2. get all elements that fall under this range.
+        // 3. process according to the rules.
+        
+        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
+        {
+            var cursor1 = 0;
+            var cursor2 = this.SourceControl.value.length;
+        }
+        else
+        {
+            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+            var cursor1 = s1.cursorPosition;
+            var cursor2 = s2.cursorPosition;
+            if (cursor2 < cursor1)
+            {
+                var t = cursor2;
+                cursor2 = cursor1;
+                cursor1 = t;
+            }
+        }
+        
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
+        
+        var c = this.removeTagInSelection(tag, false);
+        cursor1 = c[0];
+        cursor2 = c[1];
+        
+        this.wrapFormat(tag, cursor1, cursor2);
+    },
+    
+    // removes source code from start to end (exclusive)
+    removeSource: function(start, end, doUndoRedo)
+    {
+        // insert character.
+        var loc = this.getSourceLocation();
+        var dvSel = loc.dvSel;
+        var dvData = loc.dvData;
+        var cursorPosition = loc.cursorPosition;
+
+        // insert character in the source code.
+        this.setHandleSelection(false);
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
+        
+        currentSource = currentSource.substr(0, start)+currentSource.substr(end);
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged(true);
+        this.setHandleSelection(true);
+        
+        if (cursorPosition >= start && cursorPosition < end)
+            this.setCursorToSource(start);
+        else if (cursorPosition >= end)
+            this.setCursorToSource(cursorPosition-(end-start));
+    },
+    
+    // inserts character/string at the current cursor position.
+    insertSource: function(ch, doUndoRedo, doWrap)
+    {
+        // insert character.
+        var loc = this.getSourceLocation();
+        var dvSel = loc.dvSel;
+        var dvData = loc.dvData;
+        var cursorPosition = loc.cursorPosition;
+        
+        // insert character in the source code.
+        this.setHandleSelection(false);
+        var currentSource = this.SourceControl.value;
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
+        
+        if (this.isMultiSelection())
+        {
+            this.removeSelection(false);
+            
+            currentSource = this.SourceControl.value;
+            loc = this.getSourceLocation();
+            dvSel = loc.dvSel;
+            dvData = loc.dvData;
+            cursorPosition = loc.cursorPosition;
+        }
+        
+        currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
+        this.SourceControl.value = currentSource;
+        this.sourceInputChanged(true);
+        this.setHandleSelection(true);
+        
+        cursorPosition+=ch.length;
+        
+        // and now, the magic!
+        if (doWrap)
+        {
+            var cursor1 = cursorPosition-1;
+            var cursor2 = cursorPosition;
+            for (var i = 0; i < this.nextActions.length; i++)
+            {
+                var a = this.nextActions[i];
+                var r = void 0;
+                if (a.action < 0)
+                {
+                    r = this.unwrapFormat(a.mode, cursor1, cursor2);
+                }
+                else
+                {
+                    r = this.wrapFormat(a.mode, cursor1, cursor2);
+                }
+                cursor1 = r[0];
+                cursor2 = r[1];
+            }
+            cursorPosition = cursor2;
+        }
+        
+        this.nextClear();
+        this.setCursorToSource(cursorPosition);
+    },
+    
+    // static form send, to avoid using ajax all over.
+    _staticFormSubmit: function(url, args)
+    {
+        if (args === void 0)
+        {
+            window.location.href = url;
+            return;
+        }
+        
+        var form_main = document.createElement('form');
+        form_main.setAttribute('method', 'POST');
+        form_main.setAttribute('action', url);
+        var args_keys = Object.keys(args);
+        args_keys.forEach(function(arg)
+        {
+            var argv = args[arg];
+            // check if it's an array. translate to multiple field[]=value inputs.
+            if (Object.prototype.toString.call(argv) === '[object Array]')
+            {
+                var argx = arg+'[]';
+                argv.forEach(function(val)
+                {
+                    var form_field = document.createElement('input');
+                    form_field.setAttribute('type', 'hidden');
+                    form_field.setAttribute('name', argx);
+                    form_field.setAttribute('value', val);
+                    form_main.appendChild(form_field);
+                });
+            }
+            else
+            {
+                var form_field = document.createElement('input');
+                form_field.setAttribute('type', 'hidden');
+                form_field.setAttribute('name', arg);
+                form_field.setAttribute('value', argv);
+                form_main.appendChild(form_field);
+            }
+        });
+        
+        // work around firefox bug (or normal behavior?)
+        form_main.innerHTML += '<input type="submit" value="Click me" />';
+        form_main.style.display = 'none';
+        document.body.appendChild(form_main);
+        form_main.submit();
+    },
+    
+    // this function removes mode from specified range (by source location)
+    unwrapFormat: function(tag, cursor1, cursor2)
+    {
+        var currentSource = this.SourceControl.value;
         var xNodes = this.getNodesBySource(cursor1, cursor2);
         var offset = 0;
         var offset1 = 0;
@@ -1275,42 +1452,12 @@ DVEdit = {
         return [cursor1+offset1, cursor2+offset1]; // return this in case caller method wants to do anything about it
     },
     
-    addTagInSelection: function(tag, start, end, doUndoRedo)
+    wrapFormat: function(tag, cursor1, cursor2)
     {
-        if (!this.isMultiSelection())
-            return;
-        
-        var selection = this.getSelection();
-        
-        // 1. get source location of start and end of selection.
-        // 2. get all elements that fall under this range.
-        // 3. process according to the rules.
-        
-        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
-        {
-            var cursor1 = 0;
-            var cursor2 = this.SourceControl.value.length;
-        }
-        else
-        {
-            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
-            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
-            var cursor1 = s1.cursorPosition;
-            var cursor2 = s2.cursorPosition;
-            if (cursor2 < cursor1)
-            {
-                var t = cursor2;
-                cursor2 = cursor1;
-                cursor1 = t;
-            }
-        }
-        
         var currentSource = this.SourceControl.value;
-        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursor2);
         
-        var c = this.removeTagInSelection(tag, false);
-        cursor1 = c[0];
-        cursor2 = c[1];
+        var start = Syntax[tag].formatStart;
+        var end = Syntax[tag].formatEnd;
         
         var offset = 0;
         var offset1 = 0;
@@ -1328,125 +1475,23 @@ DVEdit = {
         this.sourceInputChanged(true);
         this.setHandleSelection(true);
         this.setCursorToSource(cursor1+start.length, cursor2+offset-end.length);
+        
+        return [cursor1+start.length, cursor2+offset-end.length];
     },
     
-    // removes source code from start to end (exclusive)
-    removeSource: function(start, end, doUndoRedo)
+    // schedule actions for next character that gets entered.
+    nextActions: [],
+    nextClear: function()
     {
-        // insert character.
-        var loc = this.getSourceLocation();
-        var dvSel = loc.dvSel;
-        var dvData = loc.dvData;
-        var cursorPosition = loc.cursorPosition;
-
-        // insert character in the source code.
-        this.setHandleSelection(false);
-        var currentSource = this.SourceControl.value;
-        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
-        
-        currentSource = currentSource.substr(0, start)+currentSource.substr(end);
-        this.SourceControl.value = currentSource;
-        this.sourceInputChanged(true);
-        this.setHandleSelection(true);
-        
-        if (cursorPosition >= start && cursorPosition < end)
-            this.setCursorToSource(start);
-        else if (cursorPosition >= end)
-            this.setCursorToSource(cursorPosition-(end-start));
+        this.nextActions = [];
     },
     
-    // inserts character/string at the current cursor position.
-    insertSource: function(ch, doUndoRedo)
+    nextAdd: function(action, mode)
     {
-        // insert character.
-        var loc = this.getSourceLocation();
-        var dvSel = loc.dvSel;
-        var dvData = loc.dvData;
-        var cursorPosition = loc.cursorPosition;
-        
-        // insert character in the source code.
-        this.setHandleSelection(false);
-        var currentSource = this.SourceControl.value;
-        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
-        
-        if (this.isMultiSelection())
-        {
-            this.removeSelection(false);
-            
-            currentSource = this.SourceControl.value;
-            loc = this.getSourceLocation();
-            dvSel = loc.dvSel;
-            dvData = loc.dvData;
-            cursorPosition = loc.cursorPosition;
-        }
-        
-        currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
-        this.SourceControl.value = currentSource;
-        this.sourceInputChanged(true);
-        this.setHandleSelection(true);
-        
-        cursorPosition+=ch.length;
-        
-        this.setCursorToSource(cursorPosition);
-    },
-    
-    // static form send, to avoid using ajax all over.
-    _staticFormSubmit: function(url, args)
-    {
-        if (args === void 0)
-        {
-            window.location.href = url;
-            return;
-        }
-        
-        var form_main = document.createElement('form');
-        form_main.setAttribute('method', 'POST');
-        form_main.setAttribute('action', url);
-        var args_keys = Object.keys(args);
-        args_keys.forEach(function(arg)
-        {
-            var argv = args[arg];
-            // check if it's an array. translate to multiple field[]=value inputs.
-            if (Object.prototype.toString.call(argv) === '[object Array]')
-            {
-                var argx = arg+'[]';
-                argv.forEach(function(val)
-                {
-                    var form_field = document.createElement('input');
-                    form_field.setAttribute('type', 'hidden');
-                    form_field.setAttribute('name', argx);
-                    form_field.setAttribute('value', val);
-                    form_main.appendChild(form_field);
-                });
-            }
-            else
-            {
-                var form_field = document.createElement('input');
-                form_field.setAttribute('type', 'hidden');
-                form_field.setAttribute('name', arg);
-                form_field.setAttribute('value', argv);
-                form_main.appendChild(form_field);
-            }
-        });
-        
-        // work around firefox bug (or normal behavior?)
-        form_main.innerHTML += '<input type="submit" value="Click me" />';
-        form_main.style.display = 'none';
-        document.body.appendChild(form_main);
-        form_main.submit();
-    },
-    
-    // this function removes mode from specified range (by source location)
-    unwrapFormat: function(mode, start, end)
-    {
-        
-    },
-    
-    wrapFormat: function(mode, start, end)
-    {
-        
+        this.nextActions = this.nextActions.filter(function(a) { return a.mode !== mode; });
+        this.nextActions.push({action: action, mode: mode});
     }
-    
+
 };
 
 window.addEventListener('load', function()

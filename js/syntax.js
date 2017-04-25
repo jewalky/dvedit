@@ -60,6 +60,15 @@ function Syntax_Formatting(type) {
         }
     };
     
+    var fmt = {
+        emphasis: ['//', '//'],
+        strong: ['**', '**'],
+        underline: ['__', '__'],
+        deleted: ['<del>', '</del>']
+    }[type];
+    cobj.formatStart = fmt[0];
+    cobj.formatEnd = fmt[1];
+    
     // GUI
     cobj.createControl = function(parent) {
         var dvButton = document.createElement('a');
@@ -89,20 +98,25 @@ function Syntax_Formatting(type) {
         
         dvButton.addEventListener('click', function(e) {
             var active = dvButton.getAttribute('class').indexOf('dv-panel-button-active')!==-1;
-            if (active)
+            
+            if (DVEdit.isMultiSelection())
             {
-                DVEdit.removeTagInSelection(type);
+                if (active)
+                {
+                    DVEdit.removeTagInSelection(type);
+                }
+                else
+                {
+                    DVEdit.addTagInSelection(type);
+                }
             }
             else
             {
-                var fmt = {
-                    emphasis: ['//', '//'],
-                    strong: ['**', '**'],
-                    underline: ['__', '__'],
-                    deleted: ['<del>', '</del>']
-                }[type];
-                DVEdit.addTagInSelection(type, fmt[0], fmt[1]);
+                DVEdit.nextAdd(active?-1:1, type); // -1 = remove, 1 = add
+                dvButton.setAttribute('class', 'dv-panel-button'+((active)?'':' dv-panel-button-active'));
             }
+            
+            DVEdit.Control.focus();
             
             e.preventDefault();
             return false;
