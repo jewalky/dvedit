@@ -119,6 +119,8 @@ DVEdit = {
         if (!this.isSelectionInEditor())
             return;
         
+        this.nextClear();
+        
         function checkParentDVType(node, type)
         {
             var p = node;
@@ -246,6 +248,7 @@ DVEdit = {
     {
         if (!manual)
         {
+            this.nextClear();
             DVUndoRedo.clear();
             DVUndoRedo.addValue(this.SourceControl.value, 0);
         }
