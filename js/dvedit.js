@@ -1066,10 +1066,9 @@ DVEdit = {
                 case DeleteType_Empty:
                     if (!hasContent)
                         continue;
-                    // remove content in the node, then delete the node itself if it's empty.
+                    // remove content in the node
                     var start = Math.max(cursor1, dvData.cstart);
                     var end = Math.min(cursor2-offset1, dvData.cend);
-                    var isEmpty = (start === dvData.cstart && end === dvData.cend);
                     start += offset1;
                     end += offset1;
                     this.removeSource(start, end, false);
@@ -1079,7 +1078,7 @@ DVEdit = {
                 case DeleteType_Never:
                     if (!hasContent)
                         continue;
-                    // remove content in the node, don't delete the node even if empty.
+                    // remove content in the node
                     var start = Math.max(cursor1, dvData.cstart);
                     var end = Math.min(cursor2-offset1, dvData.cend);
                     start += offset1;
@@ -1111,6 +1110,171 @@ DVEdit = {
         }
         
         this.setCursorToSource(cursor1);
+        this.optimizeTags(cursor1);
+    },
+    
+    optimizeTags: function(cursorOverride)
+    {
+        var selection = this.getSelection();
+        
+        // 1. get source location of start and end of selection.
+        // 2. get all elements that fall under this range.
+        // 3. process according to the rules.
+        
+        if (selection.anchorNode === this.Control && selection.focusNode === this.Control)
+        {
+            var cursor1 = 0;
+            var cursor2 = this.SourceControl.value.length;
+        }
+        else
+        {
+            var s1 = this.getSourceLocation(selection.anchorNode, selection.anchorOffset);
+            var s2 = this.getSourceLocation(selection.focusNode, selection.focusOffset);
+            var cursor1 = s1.cursorPosition;
+            var cursor2 = s2.cursorPosition;
+            if (cursor2 < cursor1)
+            {
+                var t = cursor2;
+                cursor2 = cursor1;
+                cursor1 = t;
+            }
+        }
+        
+        if (cursorOverride !== void 0)
+            cursor1 = cursor2 = cursorOverride;
+        
+        var offset1 = 0;
+        var offset2 = 0;
+        
+        //console.log('st0', cursor1, cursor2, offset1, offset2);
+        
+        // find tags that don't have any content and are DeleteType_Empty, and unwrap them.
+        // find tags that are adjacent to each other and have same type, start and end, and merge them.
+        
+        var removeList = [];
+        
+        var xNodes = this.Control.querySelectorAll('*[dv-type][dv-cstart][dv-cend]');
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            var dvData = Parser_GetDVAttrsFromNode(xNodes[i]);
+            if (dvData.type === 'base')
+                continue;
+            
+            var rules = Syntax[dvData.type];
+            var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
+            if (dType !== DeleteType_Empty)
+                continue;
+            // check for direct base members.
+            var c = xNodes[i].firstChild;
+            if (!c) continue;
+            
+            var countNonEmpty = 0;
+            var xCNodes = xNodes[i].querySelectorAll('*[dv-type="base"]');
+            for (var j = 0; j < xCNodes.length; j++)
+            {
+                if (!xCNodes[j].firstChild)
+                    continue;
+                if (xCNodes[j].firstChild.nodeType === Node.TEXT_NODE)
+                {
+                    var t = xCNodes[j].firstChild.nodeValue;
+                    if (t === '' || t === '\u200b')
+                        continue;
+                }
+                countNonEmpty++;
+            }
+            
+            if (!countNonEmpty)
+            {
+                removeList.push([dvData.start, dvData.cstart]);
+                removeList.push([dvData.cend, dvData.end]);
+            }
+        }
+        
+        removeList.sort(function(a,b) { return a[0]-b[0]; });
+        
+        // remove everything from the remove list.
+        // this, in turn, can enable merging.
+        var offset = 0;
+        for (var i = 0; i < removeList.length; i++)
+        {
+            var len = removeList[i][1]-removeList[i][0];
+            if (removeList[i][0] < cursor1)
+                offset1 += len;
+            if (removeList[i][0] < cursor2)
+                offset2 += len;
+            this.removeSource(removeList[i][0]-offset, removeList[i][1]-offset, false);
+            offset += len;
+        }
+        
+        //console.log('st1', cursor1, cursor2, offset1, offset2);
+        cursor1-=offset1;
+        cursor2-=offset2;
+        offset1 = 0;
+        offset2 = 0;
+        
+        removeList = [];
+        xNodes = this.Control.querySelectorAll('*[dv-type][dv-cstart][dv-cend]');
+        var currentSource = this.SourceControl.value;
+        for (var i = 0; i < xNodes.length; i++)
+        {
+            var dvData = Parser_GetDVAttrsFromNode(xNodes[i]);
+            if (dvData.type === 'base')
+                continue;
+            
+            var rules = Syntax[dvData.type];
+            var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
+            if (dType !== DeleteType_Empty)
+                continue;
+            // 
+            // check left and right node. if type is the same, merge.
+            var nLeft = xNodes[i].previousSibling;
+            var nRight = xNodes[i].nextSibling;
+            var dvLeft = nLeft ? Parser_GetDVAttrsFromNode(nLeft) : null;
+            var dvRight = nRight ? Parser_GetDVAttrsFromNode(nRight) : null;
+            var tNode = currentSource.substring(dvData.start, dvData.cstart);
+            var tLeft = dvLeft ? currentSource.substring(dvLeft.start, dvLeft.cstart) : null;
+            var tRight = dvRight ? currentSource.substring(dvRight.start, dvRight.cstart) : null;
+            if (tNode === tLeft)
+            {
+                removeList.push([dvLeft.cend, dvLeft.end]);
+                removeList.push([dvData.start, dvData.cstart]);
+            }
+            if (tNode === tRight)
+            {
+                removeList.push([dvData.cend, dvData.end]);
+                removeList.push([dvRight.start, dvRight.cstart]);
+            }
+        }
+        
+        removeList.sort(function(a,b) { return a[0]-b[0]; });
+        removeList = removeList.filter(function(t, index) {
+            var c = 0;
+            for (var i = 0; i < removeList.length; i++)
+            {
+                if (removeList[i][0] === t[0] && removeList[i][1] === t[1])
+                    return i === index;
+            }
+            
+            return false;
+        });
+        
+        offset = 0;
+        for (var i = 0; i < removeList.length; i++)
+        {
+            var len = removeList[i][1]-removeList[i][0];
+            if (removeList[i][0] < cursor1)
+                offset1 += len;
+            if (removeList[i][0] < cursor2)
+                offset2 += len;
+            this.removeSource(removeList[i][0]-offset, removeList[i][1]-offset, false);
+            offset += len;
+        }
+        
+        //console.log('st2', cursor1, cursor2, offset1, offset2);
+        cursor1-=offset1;
+        cursor2-=offset2;
+        
+        this.setCursorToSource(cursor1, cursor2);
     },
     
     removeTagInSelection: function(tag, doUndoRedo)
