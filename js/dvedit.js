@@ -864,6 +864,9 @@ DVEdit = {
         var dvData1 = Parser_GetDVAttrsFromNode(dvSel1);
         var dvData2 = Parser_GetDVAttrsFromNode(dvSel2);
         
+        if (!dvSel1 || !dvSel2)
+            return; // note: remove for debugging
+        
         if (dvSel2.firstChild)
         {
             selection.focusNode = dvSel2.firstChild;
@@ -1109,7 +1112,6 @@ DVEdit = {
             }
         }
         
-        this.setCursorToSource(cursor1);
         this.optimizeTags(cursor1);
     },
     
