@@ -578,6 +578,7 @@ DVEdit = {
                 do
                 {
                     var c = this.getSourceSelection()[1];
+                    DVUndoRedo.addValue(this.SourceControl.value, c);
                     var fn = this.getFlatNodes(0, c);
                     if (!fn.length || !c)
                         break;
@@ -592,18 +593,18 @@ DVEdit = {
                             break;
                         }
                         // if this is a block code, delete it.
-                        if (node.deleteType === DeleteType_Overlapping)
+                        else if (node.deleteType === DeleteType_Overlapping)
                         {
-                            this.removeSource(node.start, node.end);
+                            this.removeSource(node.start, node.end, false);
                             nextChar = false;
                             break;
                         }
                         // special case: if this node is a paragraph, and we are at the start of it, merge paragraphs.
-                        if (node.type === 'paragraph' && node.end === c)
+                        else if (node.type === 'paragraph' && node.end === c)
                         {
                             // merge paragraphs, kinda.
                             c -= 2;
-                            this.removeSource(c, c+2);
+                            this.removeSource(c, c+2, false);
                             // find last suitable node to put cursor into.
                             for (i = i-1; i >= 0; i--)
                             {
@@ -623,7 +624,7 @@ DVEdit = {
                             c = Math.min(c, node.end)-1;
                             var rc = this.SourceControl.value.substring(c, c+1);
                             nextChar = rc.length && !rc.match(/\s/); // stop on whitespace.
-                            this.removeSource(c, c+1);
+                            this.removeSource(c, c+1, false);
                             if (c === node.start)
                             {
                                 // find last suitable node to put cursor into.
@@ -656,52 +657,71 @@ DVEdit = {
             }
             else
             {
-                // delete after selection.
-                var selection = this.getSelection();
-                if (selection.anchorOffset < selection.anchorNode.textContent.length && selection.anchorNode.textContent !== '\u200b')
+                var nextChar = false;
+                do
                 {
-                    // delete one character after.
-                    // find first element with dv-type.
-                    var dvSel = this.getFirstDVParent(selection.focusNode);
-                    var dvData = Parser_GetDVAttrsFromNode(dvSel);
-                    
-                    var rules = Syntax[dvData.type];
-                    var dType = (rules.deleteType === void 0) ? DeleteType_Empty : rules.deleteType;
-                    
-                    if (dType === DeleteType_Empty && selection.anchorNode.textContent.length === 1)
+                    var c = this.getSourceSelection()[1];
+                    DVUndoRedo.addValue(this.SourceControl.value, c);
+                    var fn = this.getFlatNodes(c);
+                    // the best part about this is that we don't need to set cursor position!
+                    for (var i = 0; i < fn.length; i++)
                     {
-                        this.deleteAllEmptyInSelection();
-                    }
-                    else
-                    {
-                        var cursorPosition = selection.focusOffset+dvData.cstart;
-                        
-                        var currentSource = this.SourceControl.value;
-                        currentSource = currentSource.substr(0, cursorPosition)+currentSource.substr(cursorPosition+1);
-                        this.SourceControl.value = currentSource;
-                        
-                        this.sourceInputChanged(true);
-                        this.setCursorToSource(cursorPosition);
-                    }
-                }
-                else
-                {
-                    // merge with next. same rules as above, needs finishing syntax.js.
-                    // note: if we have a content-less element, we may safely delete it.
-                    if (selection.anchorNode.parentNode.nextSibling)
-                    {
-                        var dvData = Parser_GetDVAttrsFromNode(selection.anchorNode.parentNode.nextSibling);
-                        if (dvData.type !== void 0)
+                        var node = fn[i];
+                        if (node.type === 'paragraph' && node.position === 'start')
+                            continue; // parasitic entity, 0 characters long.
+                        if (node.deleteType === DeleteType_Never)
                         {
-                            var rules = Syntax[dvData.type];
-                            if (rules.deleteType === DeleteType_Overlapping)
+                            nextChar = false;
+                            break;
+                        }
+                        else if (node.deleteType === DeleteType_Overlapping)
+                        {
+                            this.removeSource(node.start, node.end, false);
+                            nextChar = false;
+                            break;
+                        }
+                        else if (node.type === 'paragraph' && c < node.end)
+                        {
+                            this.removeSource(node.start, node.end, false);
+                            for (i = i+1; i < fn.length; i++)
                             {
-                                //
-                                this.removeSource(dvData.start, dvData.end);
+                                node = fn[i];
+                                if (node.type === 'base' || node.block)
+                                {
+                                    c = node.start-2;
+                                    break;
+                                }
                             }
+                            nextChar = false;
+                            break;
+                        }
+                        else if (node.type === 'base' && node.end >= c+1)
+                        {
+                            c = Math.max(c, node.start);
+                            var rc = this.SourceControl.value.substring(c, c+1);
+                            nextChar = rc.length && !rc.match(/\s/); // stop on whitespace.
+                            this.removeSource(c, c+1, false);
+                            if (c+1 === node.end)
+                            {
+                                for (i = i+1; i < fn.length; i++)
+                                {
+                                    if (node.type === 'paragraph')
+                                        break;
+                                    
+                                    node = fn[i];
+                                    if (node.type === 'base' || node.block)
+                                    {
+                                        c = node.start-1;
+                                        break;
+                                    }
+                                }
+                            }
+                            break;
                         }
                     }
+                    this.optimizeTags(c);
                 }
+                while (nextChar && ctrlDown);
             }
         }
         else if (ctrlDown) // ctrl+something
