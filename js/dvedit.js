@@ -1072,18 +1072,9 @@ DVEdit = {
                     var isEmpty = (start === dvData.cstart && end === dvData.cend);
                     start += offset1;
                     end += offset1;
-                    if (isEmpty && (dvData !== startBlock || dvData.type !== 'paragraph'))
-                    {
-                        this.removeSource(dvData.rstart+offset1, dvData.rend+offset1, false);
-                        offset1 -= dvData.rend-dvData.rstart;
-                        cursor2 -= dvData.rend-dvData.rstart;
-                    }
-                    else
-                    {
-                        this.removeSource(start, end, false);
-                        offset1 -= end-start;
-                        cursor2 -= end-start;
-                    }
+                    this.removeSource(start, end, false);
+                    offset1 -= end-start;
+                    cursor2 -= end-start;
                     break;
                 case DeleteType_Never:
                     if (!hasContent)
