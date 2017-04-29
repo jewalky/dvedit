@@ -234,12 +234,14 @@ function Parser_Handler() {
                 
                 var mincstart = Math.min(nodeAttrs.start, nodeAttrs.cstart);
                 var maxcend = Math.max(nodeAttrs.end, nodeAttrs.cend);
-                
-                if (nodeAttrs.cstart !== void 0 &&
-                    (attrs.cstart === void 0 || mincstart < attrs.cstart)) attrs.cstart = mincstart;
-                if (nodeAttrs.cend !== void 0 &&
-                    (attrs.cend === void 0 || maxcend > attrs.cend)) attrs.cend = maxcend;
+
+                if (attrs.cstart === void 0 || attrs.cstart > mincstart)
+                    attrs.cstart = mincstart;
+                if (attrs.cend === void 0 || attrs.cend < maxcend)
+                    attrs.cend = maxcend;
             }
+            attrs.start = attrs.cstart;
+            attrs.end = attrs.cend;
             return attrs;
         },
 
@@ -286,11 +288,11 @@ function Parser_Handler() {
                 // </p> is the newline
                 // everything in between is content
                 //var inAttrs = this._getDVAttrsFromHTML(outS[i]);
-                var isN = (i != outS.length-1) && (outS.length > 1);
+                var isN = (i !== outS.length-1) && (outS.length > 1);
                 var s = outS[i].replace(/\u200b/g, '');
                 s = s.replace(/\n/g, ' ');
                 s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace('/&/g', '&amp;').replace('/"/g', '&quot;');
-                var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length + (isN ? 2 : 0), pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
+                var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length, pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
                 output += newS + (isN ? '\n\n' : '');
                 pos += outS[i].length+(isN?2:0);
             }
