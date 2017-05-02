@@ -182,7 +182,135 @@ const Syntax = {
     strong: Syntax_Formatting('strong'),
     emphasis: Syntax_Formatting('emphasis'),
     underline: Syntax_Formatting('underline'),
-    deleted: Syntax_Formatting('deleted')
+    deleted: Syntax_Formatting('deleted'),
+    
+    table: {
+        allowedModes: PARSER_MODES.formatting
+                .concat(PARSER_MODES.substition)
+                .concat(PARSER_MODES.disabled)
+                .concat(PARSER_MODES.protected),
+        
+        parserInit: function() {
+            this.startPos = 0;
+            this.tableData = [[]];
+        },
+        
+        enter: /([\^|]+)/,
+        pattern: /(\n\^|\n\||\^|\|)/,
+        leave: /\n|$/, // ;D our syntax parser allows comparing to end of string oddly enough
+        
+        process: function(match, state, pos, h) {
+            switch (state) {
+                case DOKU_LEXER_UNMATCHED: // td value
+                    h.output += h._makeParagraphs(match, pos);
+                    break;
+                case DOKU_LEXER_ENTER: // start table
+                    this.startPos = pos;
+                case DOKU_LEXER_SPECIAL: // continue table
+                    var t = match[match.length-1]==='^'?'th':'td';
+                    if (match[0] === '\n')
+                    {
+                        // like DW: if last column is null, delete.
+                        var lastRow = this.tableData[this.tableData.length-1];
+                        this.tableData.push([{start: h.output.length, type: t}]);
+                    }
+                    else this.tableData[this.tableData.length-1].push({start: h.output.length, type: t}); // null row for now
+                    break;
+                case DOKU_LEXER_EXIT: // end table
+                    this.finalizeTable(match, state, pos, h);
+                    break;
+            }
+        },
+        
+        // moved out into a separate function for easier editing
+        finalizeTable: function(match, state, pos, h) {
+            // collect text from h.output :D
+            var firstText = -1;
+            for (var y = 0; y < this.tableData.length; y++)
+            {
+                var row = this.tableData[y];
+                for (var x = 0; x < row.length; x++)
+                {
+                    var cell = row[x];
+
+                    if (firstText < 0)
+                        firstText = cell.start;
+                    
+                    var next;
+                    if (x+1 < row.length)
+                        next = row[x+1].start;
+                    else if (y+1 < this.tableData.length)
+                        next = this.tableData[y+1][0].start;
+                    else next = h.output.length;
+                    
+                    cell.text = h.output.substring(cell.start, next);
+                    
+                    // remove if empty.
+                    var tn = document.createElement('div');
+                    tn.innerHTML = cell.text;
+                    if (tn.textContent === '' || tn.textContent.trim() === ':::')
+                    {
+                        cell.text = null;
+                        cell.vertical = tn.textContent!=='';
+                    }
+                }
+                
+                if (row[row.length-1].text === null)
+                    this.tableData[y] = row.slice(0, row.length-1);
+            }
+
+            console.log(this.tableData);
+            
+            h.output = h.output.substring(0, firstText);
+            
+            // produce table.
+            // first off: absolute table start+end
+            h.output += '<table class="inline" '+h._getDVAttrs(this.startPos, pos+match.length, void 0, void 0, 'table')+'>';
+            for (var y = 0; y < this.tableData.length; y++)
+            {
+                var row = this.tableData[y];
+                h.output += '<tr>';
+                for (var x = 0; x < row.length; x++)
+                {
+                    var cell = row[x];
+                    
+                    if (cell.text === null)
+                        continue;
+                    
+                    var colspan = 1;
+                    var rowspan = 1;
+                    
+                    for (var i = x+1; i < row.length; i++)
+                    {
+                        if (row[i].text === null && !row[i].vertical)
+                            colspan++;
+                        else break;
+                    }
+                    
+                    for (var i = y+1; i < this.tableData.length; i++)
+                    {
+                        if (this.tableData[i][x] && this.tableData[i][x].text === null && this.tableData[i][x].vertical)
+                            rowspan++;
+                        else break;
+                    }
+                    
+                    // individual table cell is needed? probably not. to be considered.
+                    h.output += '<'+cell.type;
+                    if (colspan > 1)
+                        h.output += ' colspan="'+colspan+'"';
+                    if (rowspan > 1)
+                        h.output += ' rowspan="'+rowspan+'"';
+                    h.output += '>';
+                    h.output += cell.text;
+                    h.output += '</'+cell.type+'>';
+                }
+                h.output += '</tr>';
+            }
+            h.output += '</table>';
+        },
+        
+        deleteType: DeleteType_Never
+    }
 };
  
 // these are all utility functions to help moving away from DW PHP-style parser
@@ -264,13 +392,36 @@ function Parser_Handler() {
                 //var newS = '<p '+this._getDVAttrs(pos, pos, pos, pos+outS[i].length, 'paragraph')+'>' + outS[i] + '</p>';
                 //var newS = '<p>' + outS[i] + '</p>';
                 //console.log('for item "%s" attrs = %s', outS[i], JSON.stringify(this._getDVAttrsFromHTML(outS[i])));
-                var inAttrs = this._getDVAttrsFromHTML(outS[i]);
+                // note: 
+                var o = document.createElement('div');
+                o.innerHTML = outS[i];
+                // check if first o element is not a format that belongs to CONTAINERS list
+                var firstDV = o.firstChild;
+                if (firstDV.textContent==='') // this is a hack - sometimes the \n\n before a block element registers as yet another empty span...
+                    firstDV = firstDV.nextSibling;
+                var dvData = Parser_GetDVAttrsFromNode(firstDV);
+                if (firstDV && dvData)
+                {
+                    //
+                    if (o.firstChild !== firstDV)
+                        o.removeChild(o.firstChild);
+                    if (PARSER_MODES.container.indexOf(dvData.type)!==-1)
+                    {
+                        // just append this as-is, don't wrap in <p>
+                        var newS = o.innerHTML;
+                        output += newS;
+                        pos += outS[i].length+2;
+                        continue;
+                    }
+                }
+                
+                var inAttrs = this._getDVAttrsFromNodes(o.childNodes);
                 if (!outS[i].length)
                 {
                     inAttrs.start = inAttrs.cstart = pos;
                     inAttrs.end = inAttrs.cend = pos;
                 }
-                var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end+2, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+outS[i]+'</p>';
+                var newS = '<p '+this._getDVAttrs(inAttrs.start, inAttrs.end+2, inAttrs.cstart, inAttrs.cend, 'paragraph')+'>'+o.innerHTML+'</p>';
                 output += newS;
                 pos += outS[i].length+2;
             }

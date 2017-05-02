@@ -30,7 +30,7 @@ const PARSER_MODES = {
     // containers are complex modes that can contain many other modes
     // hr breaks the principle but they shouldn't be used in tables / lists
     // so they are put here
-    container: ['listblock', 'table', 'quote', 'hr'],
+    container: ['listblock', 'table', 'quote', 'hr', 'paragraph'],
 
     // some mode are allowed inside the base mode only
     baseonly: ['header'],
@@ -66,6 +66,10 @@ function ParseSingle(text, h) {
     var modeStack = ['base'];
     var inputStack = [];
     
+    // reset syntaxes
+    var stx = Object.getOwnPropertyNames(Syntax);
+    stx.forEach(function(stx) { if (typeof(Syntax[stx].parserInit)==='function') Syntax[stx].parserInit(); });
+    
     while (input.length) {
         var baseMode = Syntax[modeStack[modeStack.length-1]];
         var allowedModes = baseMode.allowedModes;
@@ -73,6 +77,11 @@ function ParseSingle(text, h) {
         var exitMatch = null;
         if (baseMode.leave !== void 0) {
             exitMatch = input.match(baseMode.leave);
+        }
+        
+        var inMatch = null;
+        if (baseMode.pattern !== void 0) {
+            inMatch = input.match(baseMode.pattern);
         }
 
         var firstModeName = null;
@@ -96,7 +105,7 @@ function ParseSingle(text, h) {
         });
         
         // if we are leaving the base mode.
-        if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index)) {
+        if (exitMatch && (!firstMatch || firstMatch.index > exitMatch.index) && (!inMatch || inMatch.index > exitMatch.index)) {
             var before = input.substr(0, exitMatch.index);
             if (before.length) {
                 baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
@@ -107,6 +116,19 @@ function ParseSingle(text, h) {
             input = input.substr(before.length+exitMatch[0].length);
             modeStack = modeStack.slice(0, modeStack.length-1);
             inputStack = inputStack.slice(0, inputStack.length-1);
+            continue;
+        }
+        
+        // if we found additional patterns for the base mode.
+        if (inMatch && (!firstMatch || firstMatch.index > inMatch.index)) {
+            var before = input.substr(0, inMatch.index);
+            if (before.length) {
+                baseMode.process(before, DOKU_LEXER_UNMATCHED, h.pos, h);
+                h.pos += before.length;
+            }
+            baseMode.process(inMatch[0], DOKU_LEXER_SPECIAL, h.pos, h);
+            h.pos += inMatch[0].length;
+            input = input.substr(before.length+inMatch[0].length);
             continue;
         }
         

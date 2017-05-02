@@ -311,38 +311,47 @@ DVEdit = {
                     var dvData1 = Parser_GetDVAttrsFromNode(xNode1);
                     if (dvData1.cstart === void 0 || dvData1.cend === void 0)
                     {
-                        // insert empty span.
-                        var span = document.createElement('span');
-                        span.setAttribute('dv-type', 'base');
-                        span.setAttribute('dv-start', dvData.end);
-                        span.setAttribute('dv-end', dvData1.start);
-                        span.setAttribute('dv-cstart', dvData.end);
-                        span.setAttribute('dv-cend', dvData1.start);
-                        span.textContent = '\u200b';
-                        xNode1.parentNode.insertBefore(span, xNode1);
+                        if (dvData.end !== void 0 && dvData1.start !== void 0)
+                        {
+                            // insert empty span.
+                            var span = document.createElement('span');
+                            span.setAttribute('dv-type', 'base');
+                            span.setAttribute('dv-start', dvData.end);
+                            span.setAttribute('dv-end', dvData1.start);
+                            span.setAttribute('dv-cstart', dvData.end);
+                            span.setAttribute('dv-cend', dvData1.start);
+                            span.textContent = '\u200b';
+                            xNode1.parentNode.insertBefore(span, xNode1);
+                        }
                     }
                 }
                 else if (!xNode1)
                 {
-                    var span = document.createElement('span');
-                    span.setAttribute('dv-type', 'base');
-                    span.setAttribute('dv-start', dvData.end);
-                    span.setAttribute('dv-end', dvData.end);
-                    span.setAttribute('dv-cstart', dvData.end);
-                    span.setAttribute('dv-cend', dvData.end);
-                    span.textContent = '\u200b';
-                    xNode.parentNode.appendChild(span);
+                    if (dvData.end !== void 0)
+                    {
+                        var span = document.createElement('span');
+                        span.setAttribute('dv-type', 'base');
+                        span.setAttribute('dv-start', dvData.end);
+                        span.setAttribute('dv-end', dvData.end);
+                        span.setAttribute('dv-cstart', dvData.end);
+                        span.setAttribute('dv-cend', dvData.end);
+                        span.textContent = '\u200b';
+                        xNode.parentNode.appendChild(span);
+                    }
                 }
                 if (!xNode0)
                 {
-                    var span = document.createElement('span');
-                    span.setAttribute('dv-type', 'base');
-                    span.setAttribute('dv-start', dvData.start);
-                    span.setAttribute('dv-end', dvData.start);
-                    span.setAttribute('dv-cstart', dvData.start);
-                    span.setAttribute('dv-cend', dvData.start);
-                    span.textContent = '\u200b';
-                    xNode.parentNode.insertBefore(span, xNode);
+                    if (dvData.start !== void 0)
+                    {
+                        var span = document.createElement('span');
+                        span.setAttribute('dv-type', 'base');
+                        span.setAttribute('dv-start', dvData.start);
+                        span.setAttribute('dv-end', dvData.start);
+                        span.setAttribute('dv-cstart', dvData.start);
+                        span.setAttribute('dv-cend', dvData.start);
+                        span.textContent = '\u200b';
+                        xNode.parentNode.insertBefore(span, xNode);
+                    }
                 }
             }
         }
