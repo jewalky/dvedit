@@ -33,15 +33,10 @@ DVUndoRedo = {
             this.cursors = [c];
             this.position++;
         }
-        else if (this.position >= this.values.length)
-        {
-            this.values.push(v);
-            this.cursors.push(c);
-        }
         else
         {
-            this.values = this.values.slice(0, this.position);
-            this.cursors = this.values.slice(0, this.position);
+            this.values = this.values.slice(0, this.position+1);
+            this.cursors = this.values.slice(0, this.position+1);
             this.values.push(v);
             this.cursors.push(c);
         }
