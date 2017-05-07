@@ -80,7 +80,12 @@ DVEdit = {
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
+        this.Control.addEventListener('focus', function(e){return DVEdit.visualFocus(e);});
+        this.Control.addEventListener('blur', function(e){return DVEdit.visualBlur(e);});
         document.addEventListener('dv-selectionchange', function(e) {return DVEdit.selectionChanged(e);});
+        
+        document.execCommand("enableObjectResizing", false, "false");
+        document.execCommand("enableInlineTableEditing", false, "false");
         
         this.Control.addEventListener('paste', function(e){return DVEdit.visualPaste(e);});
         this.Control.addEventListener('cut', function(e){return DVEdit.visualCut(e);});
@@ -784,6 +789,16 @@ DVEdit = {
         //
         e.preventDefault();
         return false;
+    },
+    
+    visualFocus: function(e)
+    {
+        
+    },
+    
+    visualBlur: function(e)
+    {
+        
     },
     
     visualPaste: function(e)
