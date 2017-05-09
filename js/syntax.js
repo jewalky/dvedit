@@ -275,6 +275,8 @@ const Syntax = {
                     {
                         cell.spacesAfter += cell.spacesBefore; // don't align right/center...
                         cell.spacesBefore = 0;
+                        cell.cstart -= cell.spacesAfter;
+                        //cell.cend += cell.spacesAfter;
                     }
                 }
                 
@@ -282,13 +284,11 @@ const Syntax = {
                     this.tableData[y] = row.slice(0, row.length-1);
             }
 
-            console.log(this.tableData);
-            
             h.output = h.output.substring(0, firstText);
             
             // produce table.
             // first off: absolute table start+end
-            h.output += '<table class="inline" '+h._getDVAttrs(this.startPos, pos+match.length, void 0, void 0, 'table')+'>';
+            h.output += '<table class="inline">';
             for (var y = 0; y < this.tableData.length; y++)
             {
                 var row = this.tableData[y];
@@ -329,11 +329,11 @@ const Syntax = {
                     var inAttrs = h._getDVAttrsFromHTML(cell.text);
                     if (inAttrs.cstart === void 0 || inAttrs.cend === void 0)
                     {
-                        inAttrs.cstart = cell.cstart;
-                        inAttrs.cend = cell.cend;
-                        inAttrs.start = cell.cstart-cell.spacesBefore;
+                        inAttrs.cstart = cell.cstart+cell.spacesBefore;
+                        inAttrs.cend = cell.cend-cell.spacesAfter;
+                        inAttrs.start = cell.cstart;
+                        inAttrs.end = cell.cend;
                     }
-                    else inAttrs.cstart = inAttrs.start = inAttrs.cend = inAttrs.end = void 0;
                     
                     // individual table cell is needed? probably not. to be considered.
                     h.output += '<'+cell.type;
@@ -366,7 +366,12 @@ const Syntax = {
         forbiddenEnd: [' '],
         forbidden: ['|', '^'],
         
-        deleteType: DeleteType_Never
+        deleteType: DeleteType_Never,
+        
+        enter: / */,
+        leave: / */,
+        
+        manual: true
     }
 };
  
@@ -462,7 +467,7 @@ function Parser_Handler() {
                     //
                     if (o.firstChild !== firstDV)
                         o.removeChild(o.firstChild);
-                    if (PARSER_MODES.container.indexOf(dvData.type)!==-1)
+                    if (PARSER_MODES.container.indexOf(dvData.type)!==-1 || dvData.type===void 0)
                     {
                         // just append this as-is, don't wrap in <p>
                         var newS = o.innerHTML;

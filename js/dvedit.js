@@ -588,13 +588,14 @@ DVEdit = {
                 {
                     var c = this.getSourceSelection()[1];
                     DVUndoRedo.addValue(this.SourceControl.value, c);
-                    var fn = this.getFlatNodes(0, c);
+                    var fn = this.getFlatNodes(0, c+1);
                     if (!fn.length || !c)
                         break;
                     // find some characters to the left of c.
                     for (var i = fn.length-1; i >= 0; i--)
                     {
                         var node = fn[i];
+                        console.log(node, c);
                         // if this is a boundary, stop completely.
                         if (node.deleteType === DeleteType_Never)
                         {
