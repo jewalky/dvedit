@@ -371,6 +371,8 @@ const Syntax = {
         forbiddenEnd: [' '],
         forbidden: ['|', '^'],
         
+        noLineBreak: true,
+        
         deleteType: DeleteType_Never,
         
         enter: / */,
