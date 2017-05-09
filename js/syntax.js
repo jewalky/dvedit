@@ -390,7 +390,7 @@ const Syntax = {
                 var dvButton = document.createElement('a');
                 dvButton.setAttribute('class', 'dv-panel-button');
                 dvButton.setAttribute('href', '#');
-                dvButton.innerHTML = align[i];
+                dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-'+align[i]+'.png" alt="'+align[i]+'">';
                 buttons.push(dvButton);
                 parent.appendChild(dvButton);
             }
