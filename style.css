@@ -75,6 +75,12 @@
     display: inline-block;
     padding: 3px;
     border-radius: 3px;
+    margin-left: 5px;
+}
+
+.dv-panel-group:first-child
+{
+    margin-left: 0;
 }
 
 .dv-panel-button

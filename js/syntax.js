@@ -122,7 +122,6 @@ function Syntax_Formatting(type) {
             }
             
             DVEdit.Control.focus();
-            
             e.preventDefault();
             return false;
         });
@@ -133,7 +132,8 @@ function Syntax_Formatting(type) {
 
 // this specifies the buttons that are available for syntax.
 const SyntaxControls = [
-    ['strong', 'emphasis', 'underline', 'deleted']
+    ['strong', 'emphasis', 'underline', 'deleted'],
+    ['tablecell']
 ];
 
 // this specifies syntax handlers.
@@ -334,6 +334,11 @@ const Syntax = {
                         inAttrs.start = cell.cstart;
                         inAttrs.end = cell.cend;
                     }
+                    else
+                    {
+                        inAttrs.start -= cell.spacesBefore;
+                        inAttrs.end += cell.spacesAfter;
+                    }
                     
                     // individual table cell is needed? probably not. to be considered.
                     h.output += '<'+cell.type;
@@ -371,7 +376,109 @@ const Syntax = {
         enter: / */,
         leave: / */,
         
-        manual: true
+        manual: true,
+        
+        createControl: function(parent) {
+            var sp = document.createElement('span');
+            sp.innerHTML = 'Table: ';
+            parent.appendChild(sp);
+            
+            var align = ['left', 'right', 'center'];
+            var buttons = [];
+            for (var i = 0; i < align.length; i++)
+            {
+                var dvButton = document.createElement('a');
+                dvButton.setAttribute('class', 'dv-panel-button');
+                dvButton.setAttribute('href', '#');
+                dvButton.innerHTML = align[i];
+                buttons.push(dvButton);
+                parent.appendChild(dvButton);
+            }
+            
+            document.addEventListener('dv-selectionchange', function(e) {
+                if (!DVEdit.isSelectionInEditor())
+                    return;
+                var xNodes = DVEdit.getNodesBySelection(true);
+                for (var i = 0; i < buttons.length; i++)
+                    buttons[i].setAttribute('class', 'dv-panel-button');
+                parent.style.display = 'none';
+                // if any nodes are in the table, show parent
+                var found = false;
+                for (var i = 0; i < xNodes.length; i++)
+                {
+                    var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                    for (var j = 0; j < dvP.length; j++)
+                    {
+                        var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                        if (dvDP.type === 'tablecell')
+                        {
+                            found = true;
+                            // check padding
+                            var l = dvDP.cstart-dvDP.start;
+                            var r = dvDP.end-dvDP.cend;
+                            if (l >= 2 && r < 2)
+                                buttons[1].setAttribute('class', 'dv-panel-button dv-panel-button-active'); // align right
+                            else if (l >= 2 && r >= 2)
+                                buttons[2].setAttribute('class', 'dv-panel-button dv-panel-button-active'); // align center
+                            else buttons[0].setAttribute('class', 'dv-panel-button dv-panel-button-active'); // align left (default)
+                        }
+                    }
+                }
+                
+                if (found)
+                {
+                    parent.style.display = 'inline-block';
+                }
+            });
+
+            var formats = [[' ', '  '], ['  ', ' '], ['  ', '  ']];
+            for (var k = 0; k < buttons.length; k++)
+            {
+                buttons[k].fmt = formats[k];
+                buttons[k].addEventListener('click', function(e) {
+                    if (!DVEdit.isSelectionInEditor())
+                        return;
+                    var cp = DVEdit.getSourceLocation().cursorPosition;
+                    var sc = DVEdit.SourceControl;
+                    var currentSource = sc.value;
+                    var fmt = this.fmt;
+                    DVUndoRedo.addValue(currentSource, cp);
+                    
+                    var xNodes = DVEdit.getNodesBySelection(true);
+                    var c1 = 0;
+                    for (var i = 0; i < xNodes.length; i++)
+                    {
+                        var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                        for (var j = 0; j < dvP.length; j++)
+                        {
+                            var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                            if (dvDP.type === 'tablecell')
+                            {
+                                // unwrap cstart to cend, wrap again with specified padding.
+                                currentSource = currentSource.substring(0, dvDP.start-c1)+fmt[0]+currentSource.substring(dvDP.cstart-c1, dvDP.cend-c1)+fmt[1]+currentSource.substring(dvDP.end-c1);
+                                var leftOffs = fmt[0].length-(dvDP.cstart-dvDP.start);
+                                var rightOffs = fmt[1].length-(dvDP.end-dvDP.cend);
+                                c1 += leftOffs+rightOffs;
+                                cp += leftOffs;
+                                if (cp >= dvDP.cend+c1)
+                                    cp += rightOffs;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    DVEdit.SourceControl.value = currentSource;
+                    DVEdit.sourceInputChanged(true);
+                    DVEdit.setCursorToSource(cp);
+                    
+                    DVEdit.Control.focus();
+                    e.preventDefault();
+                    return false;
+                });
+            }
+            
+            parent.style.display = 'none';
+        }
     }
 };
  
