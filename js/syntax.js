@@ -455,6 +455,8 @@ const Syntax = {
                             if (dvDP.type === 'tablecell')
                             {
                                 // unwrap cstart to cend, wrap again with specified padding.
+                                if (dvDP.cstart===dvDP.cend)
+                                    break; // ignore this
                                 currentSource = currentSource.substring(0, dvDP.start-c1)+fmt[0]+currentSource.substring(dvDP.cstart-c1, dvDP.cend-c1)+fmt[1]+currentSource.substring(dvDP.end-c1);
                                 var leftOffs = fmt[0].length-(dvDP.cstart-dvDP.start);
                                 var rightOffs = fmt[1].length-(dvDP.end-dvDP.cend);
