@@ -854,7 +854,7 @@ DVEdit = {
         var list = [];
         while (base && base !== this.Control)
         {
-            if (base.getAttribute && base.getAttribute('dv-type') !== void 0)
+            if (base.getAttribute && base.getAttribute('dv-type'))
                 list.push(base);
             base = base.parentNode;
         }
@@ -1549,7 +1549,6 @@ DVEdit = {
         // insert character in the source code.
         this.setHandleSelection(false);
         var currentSource = this.SourceControl.value;
-        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);
         
         if (this.isMultiSelection())
         {
@@ -1562,6 +1561,88 @@ DVEdit = {
             cursorPosition = loc.cursorPosition;
         }
         
+        // check if we can input this.
+        // only check the nearest non-base DV parent - because for example | inside a ** is not dangerous to a table.
+        function replaceCh(rules)
+        {
+            if (rules.forbiddenStart !== void 0 && cursorPosition === dvData.cstart)
+            {
+                var found;
+                do
+                {
+                    found = false;
+                    for (var i = 0; i < rules.forbiddenStart.length; i++)
+                    {
+                        if (ch[0] === rules.forbiddenStart[i])
+                        {
+                            ch = ch.substring(1);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                while (found);
+            }
+            if (rules.forbiddenEnd !== void 0 && cursorPosition === dvData.cend)
+            {
+                var found;
+                do
+                {
+                    found = false;
+                    for (var i = 0; i < rules.forbiddenEnd.length; i++)
+                    {
+                        if (ch[ch.length-1] === rules.forbiddenEnd[i])
+                        {
+                            ch = ch.substring(0, ch.length-1);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                while (found);
+            }
+            if (rules.forbidden !== void 0) 
+            {
+                for (var i = 0; i < rules.forbidden.length; i++)
+                    ch = ch.split(rules.forbidden[i]).join(''); // better than regex - doesn't require escaping
+            }
+        }
+        
+        var checkParents = true;
+        if (this.nextActions.length)
+        {
+            for (var i = this.nextActions.length-1; i >= 0; i--)
+            {
+                if (this.nextActions[i].action > 0)
+                {
+                    var rules = Syntax[this.nextActions[i].mode];
+                    replaceCh(rules);
+                    checkParents = false;
+                    break;
+                }
+            }
+        }
+        
+        // this can't be an "else" because having full list of nextActions doesn't guarantee any tag addition
+        if (checkParents)
+        {
+            var dvParents = this.getAllDVParents(dvSel);
+            for (var j = 0; j < dvParents.length; j++)
+            {
+                var dvP = dvParents[j];
+                var dvDP = Parser_GetDVAttrsFromNode(dvP);
+                if (dvDP.type === 'base')
+                    continue;
+                var rules = Syntax[dvDP.type];
+                replaceCh(rules);
+                break;
+            }
+        }
+        
+        if (!ch.length)
+            return; // nothing to change
+
+        if (doUndoRedo===void 0 || doUndoRedo) DVUndoRedo.addValue(currentSource, cursorPosition);        
         currentSource = currentSource.substr(0, cursorPosition)+ch+currentSource.substr(cursorPosition);
         this.SourceControl.value = currentSource;
         this.sourceInputChanged(true);

@@ -195,8 +195,8 @@ const Syntax = {
             this.tableData = [[]];
         },
         
-        enter: /([\^|]+)/,
-        pattern: /(\n\^|\n\||\^|\|)/,
+        enter: /([\^|]+ *)/,
+        pattern: /(\n\^ *|\n\| *| *\^ *| *\| *)/,
         leave: /\n|$/, // ;D our syntax parser allows comparing to end of string oddly enough
         
         process: function(match, state, pos, h) {
@@ -207,17 +207,34 @@ const Syntax = {
                 case DOKU_LEXER_ENTER: // start table
                     this.startPos = pos;
                 case DOKU_LEXER_SPECIAL: // continue table
-                    var t = match[match.length-1]==='^'?'th':'td';
+                case DOKU_LEXER_EXIT:
+                    var t = match.trim();
+                    t = t[t.length-1]==='^'?'th':'td';
+                    // count spaces before and after
+                    var spacesBefore = 0;
+                    var spacesAfter = 0;
+                    for (var i = 0; i < match.length; i++)
+                        if (match[i] !== ' ') break;
+                        else spacesBefore++;
+                    for (var i = 0; i < match.length; i++)
+                        if (match[match.length-1-i] !== ' ') break;
+                        else spacesAfter++;
+                    var lastRow = this.tableData[this.tableData.length-1];
                     if (match[0] === '\n')
                     {
-                        // like DW: if last column is null, delete.
-                        var lastRow = this.tableData[this.tableData.length-1];
-                        this.tableData.push([{start: h.output.length, type: t}]);
+                        this.tableData.push([{start: h.output.length, type: t, spacesBefore: spacesAfter, spacesAfter: 0}]);
                     }
-                    else this.tableData[this.tableData.length-1].push({start: h.output.length, type: t}); // null row for now
-                    break;
-                case DOKU_LEXER_EXIT: // end table
-                    this.finalizeTable(match, state, pos, h);
+                    else
+                    {
+                        if (lastRow.length)
+                        {
+                            lastRow[lastRow.length-1].spacesAfter = spacesBefore;
+                            lastRow[lastRow.length-1].cend = pos;
+                        }
+                        lastRow.push({start: h.output.length, type: t, spacesBefore: spacesAfter, spacesAfter: 0, cstart: pos+match.length, cend: pos+match.length}); // null row for now
+                    }
+                    if (state === DOKU_LEXER_EXIT)
+                        this.finalizeTable(match, state, pos, h);
                     break;
             }
         },
@@ -242,16 +259,22 @@ const Syntax = {
                     else if (y+1 < this.tableData.length)
                         next = this.tableData[y+1][0].start;
                     else next = h.output.length;
-                    
+
                     cell.text = h.output.substring(cell.start, next);
                     
                     // remove if empty.
                     var tn = document.createElement('div');
                     tn.innerHTML = cell.text;
-                    if (tn.textContent === '' || tn.textContent.trim() === ':::')
+                    if ((tn.textContent === '' && !cell.spacesBefore && !cell.spacesAfter) || tn.textContent.trim() === ':::')
                     {
                         cell.text = null;
                         cell.vertical = tn.textContent!=='';
+                    }
+                    
+                    if (tn.textContent === '')
+                    {
+                        cell.spacesAfter += cell.spacesBefore; // don't align right/center...
+                        cell.spacesBefore = 0;
                     }
                 }
                 
@@ -294,12 +317,32 @@ const Syntax = {
                         else break;
                     }
                     
+                    // pick alignment
+                    var align;
+                    if (cell.spacesBefore >= 2 && cell.spacesAfter >= 2)
+                        align = 'center';
+                    else if (cell.spacesBefore >= 2 && cell.spacesAfter < 2)
+                        align = 'right';
+                    else align = 'left';
+                    
+                    // get base offsets
+                    var inAttrs = h._getDVAttrsFromHTML(cell.text);
+                    if (inAttrs.cstart === void 0 || inAttrs.cend === void 0)
+                    {
+                        inAttrs.cstart = cell.cstart;
+                        inAttrs.cend = cell.cend;
+                        inAttrs.start = cell.cstart-cell.spacesBefore;
+                    }
+                    else inAttrs.cstart = inAttrs.start = inAttrs.cend = inAttrs.end = void 0;
+                    
                     // individual table cell is needed? probably not. to be considered.
                     h.output += '<'+cell.type;
                     if (colspan > 1)
                         h.output += ' colspan="'+colspan+'"';
                     if (rowspan > 1)
                         h.output += ' rowspan="'+rowspan+'"';
+                    h.output += ' style="text-align: '+align+'"';
+                    h.output += ' '+h._getDVAttrs(inAttrs.start, inAttrs.end, inAttrs.cstart, inAttrs.cend, 'tablecell');
                     h.output += '>';
                     h.output += cell.text;
                     h.output += '</'+cell.type+'>';
@@ -308,6 +351,20 @@ const Syntax = {
             }
             h.output += '</table>';
         },
+        
+        deleteType: DeleteType_Never
+    },
+    
+    tablecell: {
+        // these are from table
+        allowedModes: PARSER_MODES.formatting
+                .concat(PARSER_MODES.substition)
+                .concat(PARSER_MODES.disabled)
+                .concat(PARSER_MODES.protected),
+                
+        forbiddenStart: [' '],
+        forbiddenEnd: [' '],
+        forbidden: ['|', '^'],
         
         deleteType: DeleteType_Never
     }
@@ -442,7 +499,7 @@ function Parser_Handler() {
                 var isN = (i !== outS.length-1) && (outS.length > 1);
                 var s = outS[i].replace(/\u200b/g, '');
                 s = s.replace(/\n/g, ' ');
-                s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace('/&/g', '&amp;').replace('/"/g', '&quot;');
+                s = s.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                 var newS = '<span ' + this._getDVAttrs(pos, pos + outS[i].length, pos, pos + outS[i].length, 'base') + '>' + s + '</span>';
                 output += newS + (isN ? '\n\n' : '');
                 pos += outS[i].length+(isN?2:0);
