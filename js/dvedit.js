@@ -597,7 +597,7 @@ DVEdit = {
                         var node = fn[i];
                         console.log(node, c);
                         // if this is a boundary, stop completely.
-                        if (node.deleteType === DeleteType_Never)
+                        if (node.deleteType === DeleteType_Never && (node.position !== 'end' || node.start !== c))
                         {
                             nextChar = false;
                             break;
@@ -679,7 +679,7 @@ DVEdit = {
                         var node = fn[i];
                         if (node.type === 'paragraph' && node.position === 'start')
                             continue; // parasitic entity, 0 characters long.
-                        if (node.deleteType === DeleteType_Never)
+                        if (node.deleteType === DeleteType_Never && (node.position !== 'start' || node.end !== c))
                         {
                             nextChar = false;
                             break;
