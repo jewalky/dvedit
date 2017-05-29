@@ -1047,19 +1047,33 @@ DVEdit = {
             focusOffset = selection.focusOffset;
         }
         
-        // extremely special case.
+        var dvSel, dvData, cursorPosition;
+        
+        // extremely special case #1.
         if (this.SourceControl.value.length)
         {
-            // find first element with dv-type.
-            var dvSel = this.getFirstDVParent(focusNode);
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = focusOffset+dvData.cstart;
+            // extremely special case #2.
+            if (focusNode.nodeType === Node.TEXT_NODE)
+            {
+                // find first element with dv-type.
+                dvSel = this.getFirstDVParent(focusNode);
+                dvData = Parser_GetDVAttrsFromNode(dvSel);
+                cursorPosition = focusOffset+dvData.cstart;
+            }
+            else
+            {
+                // for now, assume whole row selection.
+                // firefox does this with <p>...</p> focusing.
+                dvSel = this.getFirstDVParent(focusNode);
+                dvData = Parser_GetDVAttrsFromNode(dvSel);
+                cursorPosition = focusOffset?(dvData.cend):(dvData.cstart);
+            }
         }
         else
         {
-            var dvSel = this.Control.querySelector('p');
-            var dvData = Parser_GetDVAttrsFromNode(dvSel);
-            var cursorPosition = 0;
+            dvSel = this.Control.querySelector('p');
+            dvData = Parser_GetDVAttrsFromNode(dvSel);
+            cursorPosition = 0;
         }
         
         return {
