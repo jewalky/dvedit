@@ -559,13 +559,16 @@ DVEdit = {
                 var cursor2 = this.insertSource('\n\n');
                 var cursor2p = cursor2;
                 var cursor1 = cursor2-2;
+                console.log(cursor1, cursor2p);
                 for (var i = 0; i < modes.length; i++)
                 {
+                    // note: don't unwrap paragraph. breaks it.
+                    if (modes[i] === 'paragraph' || modes[i] === 'base')
+                        continue;
                     // unwrap this part.
                     var r = this.unwrapFormat(modes[i], cursor1, cursor2);
                     cursor1 = r[0];
                     cursor2 = r[1];
-                    console.log(cursor2-cursor2p)
                 }
                 this.setCursorToSource(cursor2+(cursor2-cursor2p)); // todo: fix magic once I have free time... I don't know how/why this works at all. but it def does.
                 for (var i = modes.length-1; i >= 0; i--)
@@ -1745,6 +1748,9 @@ DVEdit = {
     // this function removes mode from specified range (by source location)
     unwrapFormat: function(tag, cursor1, cursor2)
     {
+        if (tag === 'base')
+            return; // don't unwrap core tags ever
+        
         var currentSource = this.SourceControl.value;
         var xNodes = this.getNodesBySource(cursor1, cursor2);
         var offset = 0;
@@ -1753,6 +1759,8 @@ DVEdit = {
         
         for (var i = 0; i < xNodes.length; i++)
         {
+            if (xNodes[i].cstart === void 0 || xNodes[i].cend === void 0)
+                continue;
             var xNode = xNodes[i].node;
             var xNodeBase = void 0;
             while (xNode && xNode !== this.Control && xNode != document.body)
@@ -1946,9 +1954,11 @@ DVEdit = {
         var xNodes = this.getNodesBySource(cursor1, cursor2);
         for (var i = 0; i < xNodes.length; i++)
         {
+            if (xNodes[i].cstart === void 0 || xNodes[i].cend === void 0)
+                continue;
             var cstart = Math.max(xNodes[i].cstart, cursor1);
             var cend = Math.min(xNodes[i].cend, cursor2);
-            currentSource = currentSource.substring(0, cstart+offset)+start+currentSource.substring(cstart, cend)+end+currentSource.substring(cend);
+            currentSource = currentSource.substring(0, cstart+offset)+start+currentSource.substring(cstart+offset, cend+offset)+end+currentSource.substring(cend+offset);
             offset += start.length+end.length;
         }
         
