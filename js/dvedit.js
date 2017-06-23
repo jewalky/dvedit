@@ -598,7 +598,6 @@ DVEdit = {
                     for (var i = fn.length-1; i >= 0; i--)
                     {
                         var node = fn[i];
-                        console.log(node, c);
                         // if this is a boundary, stop completely.
                         if (node.deleteType === DeleteType_Never && (node.position !== 'end' || node.start !== c))
                         {
@@ -613,8 +612,10 @@ DVEdit = {
                             break;
                         }
                         // special case: if this node is a paragraph, and we are at the start of it, merge paragraphs.
-                        else if (node.type === 'paragraph' && node.end === c)
+                        else if ((node.type === 'paragraph' && node.end === c) || (i >= 1 && fn[i-1].type === 'paragraph' && node.start === c))
                         {
+                            if (node.type !== 'paragraph')
+                                node = fn[i-1];
                             // merge paragraphs, kinda.
                             c -= 2;
                             this.removeSource(c, c+2, false);
@@ -631,13 +632,25 @@ DVEdit = {
                             nextChar = false;
                             break;
                         }
+                        // remove text
                         else if (node.type === 'base' && node.start <= c)
                         {
-                            // remove char
-                            c = Math.min(c, node.end)-1;
-                            var rc = this.SourceControl.value.substring(c, c+1);
-                            nextChar = rc.length && !rc.match(/\s/); // stop on whitespace.
-                            this.removeSource(c, c+1, false);
+                            // special case: if this is a base node, we're at the start of it, and the previous character is \\ .
+                            if (node.start === c && (i-1 >= 0 && fn[i-1].type === 'linebreak'))
+                            {
+                                // remove linebreak
+                                nextChar = false;
+                                this.removeSource(fn[i-1].start, fn[i-1].end, false);
+                                c = fn[i-1].start;
+                            }
+                            else
+                            {
+                                // remove char
+                                c = Math.min(c, node.end)-1;
+                                var rc = this.SourceControl.value.substring(c, c+1);
+                                nextChar = rc.length && !rc.match(/\s/); // stop on whitespace.
+                                this.removeSource(c, c+1, false);
+                            }
                             if (c === node.start)
                             {
                                 // find last suitable node to put cursor into.
@@ -695,14 +708,22 @@ DVEdit = {
                         }
                         else if (node.type === 'paragraph' && c < node.end)
                         {
-                            this.removeSource(node.start, node.end, false);
-                            for (i = i+1; i < fn.length; i++)
+                            // special case: next paragraph may begin with linebreak. in this case, don't merge.
+                            if (i+1 < fn.length && fn[i+1].type === 'linebreak')
                             {
-                                node = fn[i];
-                                if (node.type === 'base' || node.block)
+                                this.removeSource(fn[i+1].start, fn[i+1].end, false);
+                            }
+                            else
+                            {
+                                this.removeSource(node.start, node.end, false);                                
+                                for (i = i+1; i < fn.length; i++)
                                 {
-                                    c = node.start-2;
-                                    break;
+                                    node = fn[i];
+                                    if (node.type === 'base' || node.block)
+                                    {
+                                        c = node.start-2;
+                                        break;
+                                    }
                                 }
                             }
                             nextChar = false;
