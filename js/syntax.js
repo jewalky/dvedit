@@ -344,6 +344,8 @@ const Syntax = {
                         inAttrs.end += cell.spacesAfter;
                     }
                     
+                    this.tableData[y][x].attrs = inAttrs;
+                    
                     // individual table cell is needed? probably not. to be considered.
                     h.output += '<'+cell.type;
                     if (colspan > 1)
@@ -519,7 +521,7 @@ const Syntax = {
                     if (found) break;
                 }
                 
-                console.log(found);
+                //console.log(found);
                 
                 if (found)
                     parent.style.display = 'none';
@@ -572,8 +574,9 @@ const Syntax = {
                 var dvButton = document.createElement('a');
                 dvButton.setAttribute('class', 'dv-panel-button');
                 dvButton.setAttribute('href', '#');
+                dvButton.setAttribute('action', acts[i]);
                 dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-'+acts[i]+'.png" alt="'+acts[i]+'">';
-                buttons.push(dvButton);
+                actb.push(dvButton);
                 parent.appendChild(dvButton);
                 
                 dvButton.addEventListener('click', function(e) {
@@ -585,9 +588,8 @@ const Syntax = {
                     
                     parent.style.display = 'inline-block';
                     
+                    var xNode = void 0;
                     var xNodes = DVEdit.getNodesBySelection(true);
-                    // if any nodes are in the table, don't create
-                    var found = false;
                     for (var i = 0; i < xNodes.length; i++)
                     {
                         var dvP = DVEdit.getAllDVParents(xNodes[i].node);
@@ -596,22 +598,74 @@ const Syntax = {
                             var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
                             if (dvDP.type === 'tablecell')
                             {
-                                found = true;
+                                xNode = dvDP;
+                                xNode.node = dvP[j];
+
+                                // work with this table cell and do nothing else
+                                
                                 break;
                             }
                         }
                         
-                        if (found) break;
+                        if (xNode) break;
                     }
                     
-                    if (!found)
+                    if (!xNode)
                     {
                         e.preventDefault();
                         return false;
                     }
                     
                     // find current cell in table data
+                    var cols = xNode.node.parentNode.childNodes;
+                    var rows = xNode.node.parentNode.parentNode.childNodes;
+                    var col, row;
+                    for (col = 0; col < cols.length; col++)
+                    {
+                        if (cols[col] == xNode.node)
+                            break;
+                    }
                     
+                    for (row = 0; row < rows.length; row++)
+                    {
+                        if (rows[row] == xNode.node.parentNode)
+                            break;
+                    }
+                    
+                    var tableData = Syntax.table.datas[xNode.node.parentNode.parentNode.parentNode.getAttribute('dv-data')*1];
+                    //console.log(tableData);
+                    
+                    if (this.getAttribute('action') === 'addrow')
+                    {
+                        // add a new empty row below this one.
+                        var offset = tableData[row][tableData[row].length-1].attrs.end;
+                        var maxCols = 0;
+                        for (var i = 0; i < tableData.length; i++)
+                            maxCols = Math.max(maxCols, tableData[i].length);
+                        var p = '|\n';
+                        for (var i = 0; i < maxCols; i++)
+                            p += '| Cell ';
+                        DVEdit.insertSourceAtPosition(p, offset);
+                        DVEdit.setCursorToSource(offset+4);
+                    }
+                    else
+                    {
+                        // add a new empty column next to this one.
+                        var maxRows = tableData.length-1; // last is null
+                        var goffset = 0;
+                        var foffset = void 0;
+                        for (var i = 0; i < maxRows; i++)
+                        {
+                            var offset = tableData[i][col].attrs.end;
+                            var p = (tableData[i][col].type === 'td')?'|':'^';
+                            p += ' Cell ';
+                            if (foffset === void 0)
+                                foffset = offset+goffset+2;
+                            DVEdit.insertSourceAtPosition(p, offset+goffset);
+                            goffset += p.length;
+                        }
+                        DVEdit.setCursorToSource(foffset);
+                    }
                     
                     e.preventDefault();
                     return false;

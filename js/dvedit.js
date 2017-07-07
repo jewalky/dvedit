@@ -1576,14 +1576,11 @@ DVEdit = {
             this.setCursorToSource(cursorPosition-(end-start));
     },
     
-    // inserts character/string at the current cursor position.
-    insertSource: function(ch, doUndoRedo, doWrap, doCheckInput)
+    insertSourceAtPosition: function(ch, position, doUndoRedo, doWrap, doCheckInput)
     {
-        // insert character.
-        var loc = this.getSourceLocation();
-        var dvSel = loc.dvSel;
-        var dvData = loc.dvData;
-        var cursorPosition = loc.cursorPosition;
+        var dvSel = this.getDVNodeBySource(position);
+        var dvData = Parser_GetDVAttrsFromNode(dvSel);
+        var cursorPosition = position;
         
         // insert character in the source code.
         this.setHandleSelection(false);
@@ -1718,6 +1715,18 @@ DVEdit = {
         this.nextClear();
         this.setCursorToSource(cursorPosition);
         return cursorPosition;
+    },
+    
+    // inserts character/string at the current cursor position.
+    insertSource: function(ch, doUndoRedo, doWrap, doCheckInput)
+    {
+        // insert character.
+        var loc = this.getSourceLocation();
+        var dvSel = loc.dvSel;
+        var dvData = loc.dvData;
+        var cursorPosition = loc.cursorPosition;
+
+        return this.insertSourceAtPosition(ch, cursorPosition, doUndoRedo, doWrap, doCheckInput);
     },
     
     // static form send, to avoid using ajax all over.
