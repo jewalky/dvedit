@@ -193,6 +193,8 @@ const Syntax = {
         parserInit: function() {
             this.startPos = 0;
             this.tableData = [[]];
+            this.datas = [];
+            this.dataNum = 0;
         },
         
         enter: /([\^|]+ *)/,
@@ -288,7 +290,9 @@ const Syntax = {
             
             // produce table.
             // first off: absolute table start+end
-            h.output += '<table class="inline">';
+            h.output += '<table class="inline" dv-data="'+this.dataNum+'">';
+            this.datas[this.dataNum] = this.tableData;
+            this.dataNum++;
             for (var y = 0; y < this.tableData.length; y++)
             {
                 var row = this.tableData[y];
@@ -571,6 +575,47 @@ const Syntax = {
                 dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-'+acts[i]+'.png" alt="'+acts[i]+'">';
                 buttons.push(dvButton);
                 parent.appendChild(dvButton);
+                
+                dvButton.addEventListener('click', function(e) {
+                    if (!DVEdit.isSelectionInEditor())
+                    {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    parent.style.display = 'inline-block';
+                    
+                    var xNodes = DVEdit.getNodesBySelection(true);
+                    // if any nodes are in the table, don't create
+                    var found = false;
+                    for (var i = 0; i < xNodes.length; i++)
+                    {
+                        var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                        for (var j = 0; j < dvP.length; j++)
+                        {
+                            var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                            if (dvDP.type === 'tablecell')
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                        
+                        if (found) break;
+                    }
+                    
+                    if (!found)
+                    {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    // find current cell in table data
+                    
+                    
+                    e.preventDefault();
+                    return false;
+                });
             }
             
             document.addEventListener('dv-selectionchange', function(e) {
@@ -614,8 +659,40 @@ const Syntax = {
             {
                 buttons[k].fmt = formats[k];
                 buttons[k].addEventListener('click', function(e) {
+                    
                     if (!DVEdit.isSelectionInEditor())
-                        return;
+                    {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
+                    parent.style.display = 'inline-block';
+                    
+                    var xNodes = DVEdit.getNodesBySelection(true);
+                    // if any nodes are in the table, don't create
+                    var found = false;
+                    for (var i = 0; i < xNodes.length; i++)
+                    {
+                        var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                        for (var j = 0; j < dvP.length; j++)
+                        {
+                            var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                            if (dvDP.type === 'tablecell')
+                            {
+                                found = true;
+                                break;
+                            }
+                        }
+                        
+                        if (found) break;
+                    }
+                    
+                    if (!found)
+                    {
+                        e.preventDefault();
+                        return false;
+                    }
+                    
                     var cp = DVEdit.getSourceLocation().cursorPosition;
                     var sc = DVEdit.SourceControl;
                     var currentSource = sc.value;
@@ -638,8 +715,8 @@ const Syntax = {
                                 currentSource = currentSource.substring(0, dvDP.start-c1)+fmt[0]+currentSource.substring(dvDP.cstart-c1, dvDP.cend-c1)+fmt[1]+currentSource.substring(dvDP.end-c1);
                                 var leftOffs = fmt[0].length-(dvDP.cstart-dvDP.start);
                                 var rightOffs = fmt[1].length-(dvDP.end-dvDP.cend);
-                                c1 += leftOffs+rightOffs;
-                                cp += leftOffs;
+                                c1 -= leftOffs+rightOffs;
+                                cp -= leftOffs;
                                 if (cp >= dvDP.cend+c1)
                                     cp += rightOffs;
                                 break;
