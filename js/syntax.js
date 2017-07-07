@@ -133,7 +133,7 @@ function Syntax_Formatting(type) {
 // this specifies the buttons that are available for syntax.
 const SyntaxControls = [
     ['strong', 'emphasis', 'underline', 'deleted'],
-    ['tablecell']
+    ['table'], ['tablecell']
 ];
 
 // this specifies syntax handlers.
@@ -355,9 +355,173 @@ const Syntax = {
                 h.output += '</tr>';
             }
             h.output += '</table>';
+            
+            this.startPos = 0;
+            this.tableData = [[]];
         },
         
-        deleteType: DeleteType_Never
+        deleteType: DeleteType_Never,
+        
+        createControl: function(parent) {
+            var dvButton = document.createElement('a');
+            dvButton.setAttribute('class', 'dv-panel-button');
+            dvButton.setAttribute('href', '#');
+            dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-create.png" alt="create table">';
+            parent.appendChild(dvButton);
+            
+            dvButton.addEventListener('click', function(e) { 
+                
+                if (!DVEdit.isSelectionInEditor())
+                {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                parent.style.display = 'inline-block';
+                
+                var xNodes = DVEdit.getNodesBySelection(true);
+                // if any nodes are in the table, don't create
+                var found = false;
+                for (var i = 0; i < xNodes.length; i++)
+                {
+                    var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                    for (var j = 0; j < dvP.length; j++)
+                    {
+                        var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                        if (dvDP.type === 'tablecell')
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (found) break;
+                }
+                
+                if (found)
+                {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                var wndbg = document.createElement('div'); wndbg.className = 'dv-popup-bg';
+                var wnd = document.createElement('div'); wnd.className = 'dv-popup';
+                var wnd_header = document.createElement('div'); wnd_header.className = 'dv-popup-header';
+                var wnd_content = document.createElement('div'); wnd_content.className = 'dv-popup-content';
+                var wnd_footer = document.createElement('div'); wnd_footer.className = 'dv-popup-header';
+                wnd_footer.style.textAlign = 'right';
+                wnd.appendChild(wnd_header);
+                wnd.appendChild(wnd_content);
+                wnd.appendChild(wnd_footer);
+                wndbg.appendChild(wnd);
+                DVEdit.Control.blur();
+                document.body.appendChild(wndbg);
+                wndbg.style.position = 'absolute';
+                var r = DVEdit.Control.getBoundingClientRect();
+                wndbg.style.left = (r.left+window.pageXOffset)+'px';
+                wndbg.style.top = (r.top+window.pageYOffset)+'px';
+                wndbg.style.width = r.width+'px';
+                wndbg.style.height = r.height+'px';
+                wnd_header.innerHTML = '<b>Create table</b>';
+                
+                var wnd_ok = document.createElement('button');
+                wnd_ok.innerHTML = 'Create';
+                var wnd_separator = document.createTextNode('\u00A0');
+                var wnd_cancel = document.createElement('button');
+                wnd_cancel.innerHTML = 'Cancel';
+                wnd_footer.appendChild(wnd_ok);
+                wnd_footer.appendChild(wnd_separator);
+                wnd_footer.appendChild(wnd_cancel);
+                
+                //wnd_content.innerHTML = 'test';
+                var h = '<table style="width: 100%"><tr><td><label>Rows:<br><input type="text" id="table-rows" value="3"></label></td>';
+                h += '<td><label>Columns:<br><input type="text" id="table-columns" value="3"></label></td></tr></table>';
+                h += '<label><input type="checkbox" checked id="table-header">With header</label>';
+                wnd_content.innerHTML = h;
+                
+                function doClose() {
+                    wndbg.parentNode.removeChild(wndbg);
+                    DVEdit.Control.focus();
+                }
+                
+                function doOk() {
+                    var numRows = document.getElementById('table-rows').value*1;
+                    var numCols = document.getElementById('table-columns').value*1;
+                    if (isNaN(numRows) || numRows <= 0) numRows = 1;
+                    if (isNaN(numCols) || numCols <= 0) numCols = 1;
+                    var isHeader = !!document.getElementById('table-header').checked;
+                    var tableSource = '\n\n';
+                    if (isHeader)
+                    {
+                        for (var i = 0; i < numCols; i++)
+                            tableSource += '^ Header '+(i+1)+' ';
+                        tableSource += '^\n';
+                    }
+                    for (var j = 0; j < numRows; j++)
+                    {
+                        for (var i = 0; i < numCols; i++)
+                            tableSource += '| Cell '+(j+1)+':'+(i+1)+' ';
+                        tableSource += '|\n';
+                    }
+                    tableSource += '\n\n';
+                    DVEdit.insertSource(tableSource);
+                    doClose();
+                }
+                
+                wndbg.addEventListener('keydown', function(e) {
+                    if (e.keyCode == 27) {
+                        doClose();
+                    } else if (e.keyCode == 13) {
+                        doOk();
+                    }
+                });
+                
+                wnd_cancel.addEventListener('click', function(e) {
+                    doClose();
+                });
+                
+                wnd_ok.addEventListener('click', function(e) {
+                    doOk();
+                });
+                
+                wnd_ok.focus();
+                
+                e.preventDefault();
+                return false;
+                
+            });
+            
+            document.addEventListener('dv-selectionchange', function(e) {
+                if (!DVEdit.isSelectionInEditor())
+                    return;
+                parent.style.display = 'inline-block';
+                
+                var xNodes = DVEdit.getNodesBySelection(true);
+                // if any nodes are in the table, don't show "create table"
+                var found = false;
+                for (var i = 0; i < xNodes.length; i++)
+                {
+                    var dvP = DVEdit.getAllDVParents(xNodes[i].node);
+                    for (var j = 0; j < dvP.length; j++)
+                    {
+                        var dvDP = Parser_GetDVAttrsFromNode(dvP[j]);
+                        if (dvDP.type === 'tablecell')
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if (found) break;
+                }
+                
+                console.log(found);
+                
+                if (found)
+                    parent.style.display = 'none';
+            });
+            
+        }
     },
     
     tablecell: {
@@ -382,7 +546,7 @@ const Syntax = {
         
         createControl: function(parent) {
             var sp = document.createElement('span');
-            sp.innerHTML = 'Table: ';
+            sp.innerHTML = 'Table&nbsp;cell:&nbsp;';
             parent.appendChild(sp);
             
             var align = ['left', 'right', 'center'];
@@ -393,6 +557,18 @@ const Syntax = {
                 dvButton.setAttribute('class', 'dv-panel-button');
                 dvButton.setAttribute('href', '#');
                 dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-'+align[i]+'.png" alt="'+align[i]+'">';
+                buttons.push(dvButton);
+                parent.appendChild(dvButton);
+            }
+            
+            var acts = ['addrow', 'addcol'];
+            var actb = [];
+            for (var i = 0; i < acts.length; i++)
+            {
+                var dvButton = document.createElement('a');
+                dvButton.setAttribute('class', 'dv-panel-button');
+                dvButton.setAttribute('href', '#');
+                dvButton.innerHTML = '<img src="lib/plugins/dvedit/img/table-'+acts[i]+'.png" alt="'+acts[i]+'">';
                 buttons.push(dvButton);
                 parent.appendChild(dvButton);
             }

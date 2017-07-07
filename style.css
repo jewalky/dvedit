@@ -120,3 +120,31 @@
 {
     background: #888;
 }
+
+.dv-popup-bg
+{
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.dv-popup
+{
+    background: white;
+    box-shadow: 1px 1px 5px #444;
+    width: 70%;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 32px;
+    overflow: hidden;
+    border-radius: 6px;
+}
+
+.dv-popup-header
+{
+    padding: 8px;
+    background: #eee;
+}
+
+.dv-popup-content
+{
+    padding: 8px;
+}
