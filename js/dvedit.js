@@ -1,3 +1,84 @@
+DVLibrary = {
+    checkParentDVType: function(node, type)
+    {
+        var p = node;
+        while (p)
+        {
+            if (p.getAttribute && p.getAttribute('dv-type')===type)
+                return true;
+            p = p.parentNode;
+        }
+        
+        return false;
+    },
+    
+    findFirstTextNode: function(node)
+    {
+        if (node.nodeType === Node.TEXT_NODE && DVLibrary.checkParentDVType(node, 'base'))
+            return node;
+        var s = node.firstChild;
+        while (s)
+        {
+            var o = DVLibrary.findFirstTextNode(s);
+            if (o) return o;
+            s = s.nextSibling;
+        }
+        return void 0;
+    },
+    
+    findLastTextNode: function(node)
+    {
+        if (node.nodeType === Node.TEXT_NODE && DVLibrary.checkParentDVType(node, 'base'))
+            return node;
+        var s = node.lastChild;
+        while (s)
+        {
+            var o = DVLibrary.findLastTextNode(s);
+            if (o) return o;
+            s = s.previousSibling;
+        }
+        return void 0;
+    },
+    
+    findPrevTextSibling: function(node)
+    {
+        var p = node;
+        while (p && p != DVEdit.Control)
+        {
+            var s = p.previousSibling;
+            while (s)
+            {
+                var o = DVLibrary.findLastTextNode(s);
+                if (o) return o;
+                s = s.previousSibling;
+            }
+            
+            p = p.parentNode;
+        }
+        
+        return void 0;
+    },
+    
+    findNextTextSibling: function(node)
+    {
+        var p = node;
+        while (p && p != DVEdit.Control)
+        {
+            var s = p.nextSibling;
+            while (s)
+            {
+                var o = DVLibrary.findFirstTextNode(s);
+                if (o) return o;
+                s = s.nextSibling;
+            }
+            
+            p = p.parentNode;
+        }
+        
+        return void 0;
+    }
+};
+
 DVUndoRedo = {
     
     values: [],
@@ -75,6 +156,7 @@ DVEdit = {
         this.Control.addEventListener('keypress', function(e){return DVEdit.visualKeyPress(e);});
         this.Control.addEventListener('keydown', function(e){return DVEdit.visualKeyDown(e);});
         this.Control.addEventListener('keyup', function(e){return DVEdit.visualKeyUp(e);});
+        this.Control.addEventListener('mousedown', function(e){return DVEdit.visualMouseDown(e);});
         this.Control.addEventListener('focus', function(e){return DVEdit.visualFocus(e);});
         this.Control.addEventListener('blur', function(e){return DVEdit.visualBlur(e);});
         document.addEventListener('dv-selectionchange', function(e) {return DVEdit.selectionChanged(e);});
@@ -109,6 +191,12 @@ DVEdit = {
         this.handleSelection = handle;
     },
     
+    visualMouseDown: function(e)
+    {
+        this.lastOffset = -1;
+        this.lastNode = void 0;
+    },
+    
     lastOffset: -1,
     lastNode: void 0,
     selectionChanged: function(e)
@@ -118,86 +206,6 @@ DVEdit = {
         
         if (!this.isSelectionInEditor())
             return;
-        
-        function checkParentDVType(node, type)
-        {
-            var p = node;
-            while (p)
-            {
-                if (p.getAttribute && p.getAttribute('dv-type')===type)
-                    return true;
-                p = p.parentNode;
-            }
-            
-            return false;
-        }
-        
-        function findPrevTextSibling(node)
-        {
-            function findLastTextNode(node)
-            {
-                if (node.nodeType === Node.TEXT_NODE && checkParentDVType(node, 'base'))
-                    return node;
-                var s = node.lastChild;
-                while (s)
-                {
-                    var o = findLastTextNode(s);
-                    if (o) return o;
-                    s = s.previousSibling;
-                }
-                return void 0;
-            }
-            
-            var p = node;
-            while (p && p != DVEdit.Control)
-            {
-                var s = p.previousSibling;
-                while (s)
-                {
-                    var o = findLastTextNode(s);
-                    if (o) return o;
-                    s = s.previousSibling;
-                }
-                
-                p = p.parentNode;
-            }
-            
-            return void 0;
-        }
-        
-        function findNextTextSibling(node)
-        {
-            function findFirstTextNode(node)
-            {
-                if (node.nodeType === Node.TEXT_NODE && checkParentDVType(node, 'base'))
-                    return node;
-                var s = node.firstChild;
-                while (s)
-                {
-                    var o = findFirstTextNode(s);
-                    if (o) return o;
-                    s = s.nextSibling;
-                }
-                return void 0;
-            }
-
-            
-            var p = node;
-            while (p && p != DVEdit.Control)
-            {
-                var s = p.nextSibling;
-                while (s)
-                {
-                    var o = findFirstTextNode(s);
-                    if (o) return o;
-                    s = s.nextSibling;
-                }
-                
-                p = p.parentNode;
-            }
-            
-            return void 0;
-        }
         
         var selection = this.getSelection();
         var selectionNull = (selection.focusNode.nodeValue === '\u200b');
@@ -211,7 +219,7 @@ DVEdit = {
                 if (this.lastNode === selection.focusNode && this.lastOffset === 0)
                 {
                     this.setHandleSelection(false);
-                    var nextSibling = findNextTextSibling(selection.focusNode);
+                    var nextSibling = DVLibrary.findNextTextSibling(selection.focusNode);
                     if (nextSibling)
                     {
                         var deflated = selection.focusNode === selection.anchorNode && selection.focusOffset === selection.anchorOffset;
@@ -260,6 +268,31 @@ DVEdit = {
         
         var parsed = Parse(this.SourceControl.value);
         this.Control.innerHTML = parsed;
+        if (!this.Control.firstChild || this.Control.firstChild.nodeType !== Node.TEXT_NODE)
+        {
+            var span = document.createElement('span');
+            span.setAttribute('dv-type', 'base');
+            span.setAttribute('dv-start', 0);
+            span.setAttribute('dv-end', 0);
+            span.setAttribute('dv-cstart', 0);
+            span.setAttribute('dv-cend', 0);
+            span.style.display = 'none';
+            span.textContent = '\u200b';
+            this.Control.insertBefore(span, this.Control.firstChild);
+        }
+        if (!this.Control.lastChild || this.Control.lastChild.nodeType !== Node.TEXT_NODE)
+        {
+            var end = newSource.length;
+            var span = document.createElement('span');
+            span.setAttribute('dv-type', 'base');
+            span.setAttribute('dv-start', end);
+            span.setAttribute('dv-end', end);
+            span.setAttribute('dv-cstart', end);
+            span.setAttribute('dv-cend', end);
+            span.style.display = 'none';
+            span.textContent = '\u200b';
+            this.Control.appendChild(span);
+        }
         
         // fix some things for editing.
         var xNode = void 0;
@@ -595,9 +628,13 @@ DVEdit = {
                     if (!fn.length || !c)
                         break;
                     // find some characters to the left of c.
+                    var lastStart = 2147483647;
                     for (var i = fn.length-1; i >= 0; i--)
                     {
                         var node = fn[i];
+                        if (node.start >= lastStart)
+                            continue;
+                        lastStart = node.start;
                         // if this is a boundary, stop completely.
                         if (node.deleteType === DeleteType_Never && (node.position !== 'end' || node.start !== c))
                         {
@@ -987,8 +1024,107 @@ DVEdit = {
     getSelection: function()
     {
         var selection = window.getSelection();
-        return { focusNode: selection.focusNode, focusOffset: selection.focusOffset, 
-                 anchorNode: selection.anchorNode, anchorOffset: selection.anchorOffset };
+        selection = { focusNode: selection.focusNode, focusOffset: selection.focusOffset, 
+                      anchorNode: selection.anchorNode, anchorOffset: selection.anchorOffset };
+        
+        // detect selection direction - this might be needed occasionally
+        var isReversed = false;
+        if (selection.anchorNode && selection.focusNode)
+        {
+            var position = selection.anchorNode.compareDocumentPosition(selection.focusNode);
+            if ((!position && selection.anchorOffset > selection.focusOffset) ||
+                position === Node.DOCUMENT_POSITION_PRECEDING) isReversed = true;
+        }
+        
+        selection.isReversed = isReversed;
+        // fix up the format: if it's not text nodes, find nearest text nodes and use these.
+        
+        function textNodeFromRegularNode(node)
+        {
+            if (!node) return void 0;
+            if (node.nodeType === Node.TEXT_NODE)
+                return node;
+            
+            var c = node.firstChild;
+            while (c)
+            {
+                if (c.firstChild)
+                    c = c.firstChild;
+                else break;
+            }
+            if (c) node = c;
+            
+            while (true)
+            {
+                if (!node) return void 0;
+                if (node.nodeType === Node.TEXT_NODE)
+                    return node;
+                if (node.nextSibling)
+                {
+                    node = node.nextSibling;
+                    var c = node.firstChild;
+                    while (c)
+                    {
+                        if (c.firstChild)
+                            c = c.firstChild;
+                        else break;
+                    }
+                    if (c) node = c;
+                }
+                else
+                {
+                    // go to deepest parent/next sibling
+                    var p = node.parentNode;
+                    var s = void 0;
+                    while (p && p !== document.body)
+                    {
+                        if (p.nextSibling)
+                        {
+                            s = p.nextSibling;
+                            break;
+                        }
+                        
+                        p = p.parentNode;
+                    }
+                    // found first parent with siblings
+                    // find deepest first child in this one
+                    var c = s.firstChild;
+                    while (c)
+                    {
+                        if (c.firstChild)
+                            c = c.firstChild;
+                        else break;
+                    }
+                    if (c) node = c;
+                    else node = s;
+                }
+            }
+            return void 0;
+        }
+        
+        if (selection.focusNode && selection.focusNode.nodeType !== Node.TEXT_NODE)
+        {
+            var actualPointedNode = selection.focusNode.childNodes[selection.focusOffset];
+            var firstTextNode = textNodeFromRegularNode(actualPointedNode);
+            if (firstTextNode)
+            {
+                selection.focusNode = firstTextNode;
+                selection.focusOffset = 0;
+            }
+        }
+        
+        if (selection.anchorNode && selection.anchorNode.nodeType !== Node.TEXT_NODE)
+        {
+            var actualPointedNode = selection.anchorNode.childNodes[selection.anchorOffset];
+            var firstTextNode = textNodeFromRegularNode(actualPointedNode);
+            if (firstTextNode)
+            {
+                selection.anchorNode = firstTextNode;
+                selection.anchorOffset = 0;
+            }
+        }
+        
+        return selection;
     },
     
     setSelection: function(sel, noset)
@@ -1254,6 +1390,9 @@ DVEdit = {
             {
                 case DeleteType_Overlapping:
                     // just remove the node entirely.
+                    // but don't do anything if it's not entirely overlapping.
+                    if (dvData.rstart < cursor1 || dvData.rend > cursor2)
+                        continue;
                     this.removeSource(dvData.rstart+offset1, dvData.rend+offset1, false);
                     offset1 -= dvData.rend-dvData.rstart;
                     cursor2 -= dvData.rend-dvData.rstart;

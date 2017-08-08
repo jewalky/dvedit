@@ -208,6 +208,8 @@ const Syntax = {
                     break;
                 case DOKU_LEXER_ENTER: // start table
                     this.startPos = pos;
+                    this.tableData = [[]];
+                    h.registerFinalizer(Syntax.table.finalizeTableCallback);
                 case DOKU_LEXER_SPECIAL: // continue table
                 case DOKU_LEXER_EXIT:
                     var t = match.trim();
@@ -236,13 +238,21 @@ const Syntax = {
                         lastRow.push({start: h.output.length, type: t, spacesBefore: spacesAfter, spacesAfter: 0, cstart: pos+match.length, cend: pos+match.length}); // null row for now
                     }
                     if (state === DOKU_LEXER_EXIT)
-                        this.finalizeTable(match, state, pos, h);
+                    {
+                        h.unregisterFinalizer(Syntax.table.finalizeTableCallback);
+                        this.finalizeTable(h);
+                    }
                     break;
             }
         },
         
+        //
+        finalizeTableCallback: function(h) {
+            return Syntax.table.finalizeTable(h);
+        },
+        
         // moved out into a separate function for easier editing
-        finalizeTable: function(match, state, pos, h) {
+        finalizeTable: function(h) {
             // collect text from h.output :D
             var firstText = -1;
             for (var y = 0; y < this.tableData.length; y++)
@@ -293,7 +303,7 @@ const Syntax = {
             h.output += '<table class="inline" dv-data="'+this.dataNum+'">';
             this.datas[this.dataNum] = this.tableData;
             this.dataNum++;
-            for (var y = 0; y < this.tableData.length; y++)
+            for (var y = 0; y < this.tableData.length-1; y++)
             {
                 var row = this.tableData[y];
                 h.output += '<tr>';
@@ -360,7 +370,7 @@ const Syntax = {
                 }
                 h.output += '</tr>';
             }
-            h.output += '</table>';
+            h.output += '</table>\n\n';
             
             this.startPos = 0;
             this.tableData = [[]];
@@ -803,6 +813,24 @@ function Parser_GetModes() {
 // main parser handler.
 function Parser_Handler() {
     return {
+        finalizers: [],
+        registerFinalizer: function(cb) {
+            for (var i = 0; i < this.finalizers.length; i++) {
+                if (this.finalizers[i] === cb)
+                    return;
+            }
+            this.finalizers.push(cb);
+        },
+        
+        unregisterFinalizer: function(cb) {
+            for (var i = 0; i < this.finalizers.length; i++) {
+                if (this.finalizers[i] === cb) {
+                    this.finalizers.splice(i, 1);
+                    i--;
+                }
+            }
+        },
+        
         output: '',
 
         _getDVAttrs: function(start, end, cstart, cend, type) {
@@ -860,6 +888,10 @@ function Parser_Handler() {
         },
 
         _finalize: function() {
+            // execute user finalizers
+            for (var i = 0; i < this.finalizers.length; i++)
+                this.finalizers[i](this);
+            this.finalizers = [];
             // take output and convert newlines to p's
             var outS = this.output.split('\n\n');
             var pos = 0;
@@ -877,7 +909,7 @@ function Parser_Handler() {
                 o.innerHTML = outS[i];
                 // check if first o element is not a format that belongs to CONTAINERS list
                 var firstDV = o.firstChild;
-                if (firstDV.textContent==='') // this is a hack - sometimes the \n\n before a block element registers as yet another empty span...
+                if (firstDV && firstDV.tagName.toLowerCase() === 'span' && firstDV.textContent==='') // this is a hack - sometimes the \n\n before a block element registers as yet another empty span...
                     firstDV = firstDV.nextSibling;
                 var dvData = Parser_GetDVAttrsFromNode(firstDV);
                 if (firstDV && dvData)
