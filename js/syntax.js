@@ -161,6 +161,19 @@ const Syntax = {
         
     },
     
+    // this is used for <nowiki>
+    unformatted: {
+        allowedModes: [],
+        enter: /<nowiki>/,
+        leave: /<\/nowiki>/,
+        
+        process: function(match, state, pos, h) {
+            Syntax.base.process(match, state, pos, h);
+        },
+        
+        deleteType: DeleteType_Overlapping
+    },
+    
     linebreak: {
         allowedModes: PARSER_MODES.container
                 .concat(PARSER_MODES.baseonly)
@@ -184,6 +197,128 @@ const Syntax = {
     underline: Syntax_Formatting('underline'),
     deleted: Syntax_Formatting('deleted'),
     
+    list: {
+        allowedModes: PARSER_MODES.formatting
+                .concat(PARSER_MODES.substition)
+                .concat(PARSER_MODES.disabled)
+                .concat(PARSER_MODES.protected),
+                
+        parserInit: function() {
+            this.listData = [];
+            this.baseLevel = 0;
+        },
+                
+        enter: /((  )+(\*|\-))/,
+        pattern: /(\n(  )+(\*|\-))/,
+        leave: /(\n|$)/,
+        
+        process: function(match, state, pos, h) {
+            switch (state) {
+                case DOKU_LEXER_UNMATCHED: // item value
+                    h.output += h._makeParagraphs(match, pos);
+                    break;
+                case DOKU_LEXER_ENTER: // start list
+                    // do nothing special for now
+                    this.listData = [];
+                    this.baseLevel = 0;
+                    h.registerFinalizer(Syntax.list.finalizeListCallback);
+                case DOKU_LEXER_SPECIAL:
+                    //console.log(match);
+                    // here, "match" is the list marker on the right.
+                    match = match.trimRight();
+                    if (match[0] === '\n') match = match.substring(1);
+                    var t = match[match.length-1];
+                    var lev = (match.length-1)/2;
+                    if (this.baseLevel === 0)
+                        this.baseLevel = lev;// if anything is LESS than base level, it's considered base
+                    else lev = Math.max(lev, this.baseLevel);
+                    this.listData.push({start: h.output.length, level: lev, type: t});
+                    break;
+                case DOKU_LEXER_EXIT:
+                    if (state === DOKU_LEXER_EXIT)
+                    {
+                        h.unregisterFinalizer(Syntax.list.finalizeListCallback);
+                        this.finalizeList(h);
+                    }
+                    break;
+            }
+        },
+        
+        finalizeListCallback: function(h) {
+            
+        },
+        
+        finalizeList: function(h) {
+            // take all contents
+            this.listData.push({start: h.output.length, level: -1, type: void 0});
+            for (var i = 0; i < this.listData.length-1; i++) {
+                var dstart = this.listData[i].start;
+                var dend = this.listData[i+1].start;
+                this.listData[i].end = dend;
+                this.listData[i].text = h.output.substring(dstart, dend);
+            }
+            
+            h.output = h.output.substring(0, this.listData[0].start);
+            
+            // 
+            var tree = { children: [], level: 1, type: 'ul' };
+            var curdata = [ { node: tree, level: 0 } ];
+            for (var i = 0; i < this.listData.length; i++) {
+                var ld = this.listData[i];
+                // we check ld.level
+                // if it's higher than last recorded curdata level, then last element is a node
+                // if it's lower than last recorded curdata level, then we need to close previous nodes and start next one
+                if (ld.text === void 0)
+                    break;
+                console.log(ld.type);
+                var nnode = { text: ld.text, type: (ld.type==='*'?'ul':'ol'), level: ld.level, children: [] };
+                if (ld.level > curdata[curdata.length-1].level) { // enter
+                    curdata[curdata.length-1].node.children.push(nnode);
+                    if (this.listData[i+1].level > ld.level)
+                        curdata.push( { node: nnode, level: ld.level } );
+                } else if (ld.level < curdata[curdata.length-1].level) { // leave
+                    //curdata = curdata.splice(0, curdata.length-1);
+                    // find last node below this level
+                    var j;
+                    for (j = curdata.length-1; j >= 0; j--) {
+                        if (curdata[j].level <= ld.level)
+                            break;
+                    }
+                    curdata = curdata.splice(0, j);
+                    curdata[curdata.length-1].node.children.push(nnode);
+                } else {
+                    curdata[curdata.length-1].node.children.push(nnode);
+                }
+            }
+            
+            function recurseList(node) {
+                var html = '';
+                var lastlt = void 0;
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    var lt = child.type;
+                    if (lt !== lastlt) {
+                        if (lastlt !== void 0)
+                            html += '</'+lastlt+'>';
+                        html += '<'+lt+'>';
+                        lastlt = lt;
+                    }
+                    html += '<li class="level'+node.level+(child.children.length?' node':'')+'">';
+                    html += child.text;
+                    if (child.children.length) {
+                        html += recurseList(child);
+                    }
+                    html += '</li>';
+                }
+                if (lastlt !== void 0)
+                    html += '</'+lastlt+'>';
+                return html;
+            }
+            
+            h.output += recurseList(tree);
+        }
+    },
+    
     table: {
         allowedModes: PARSER_MODES.formatting
                 .concat(PARSER_MODES.substition)
@@ -199,7 +334,7 @@ const Syntax = {
         
         enter: /([\^|]+ *)/,
         pattern: /(\n\^ *|\n\| *| *\^ *| *\| *)/,
-        leave: /\n|$/, // ;D our syntax parser allows comparing to end of string oddly enough
+        leave: /(\n|$)/, // ;D our syntax parser allows comparing to end of string oddly enough
         
         process: function(match, state, pos, h) {
             switch (state) {
@@ -253,6 +388,10 @@ const Syntax = {
         
         // moved out into a separate function for easier editing
         finalizeTable: function(h) {
+            // just in case: add null row
+            /*if (this.tableData[this.tableData.length-1].length)
+                this.tableData.push(null);*/
+            
             // collect text from h.output :D
             var firstText = -1;
             for (var y = 0; y < this.tableData.length; y++)
@@ -303,9 +442,11 @@ const Syntax = {
             h.output += '<table class="inline" dv-data="'+this.dataNum+'">';
             this.datas[this.dataNum] = this.tableData;
             this.dataNum++;
-            for (var y = 0; y < this.tableData.length-1; y++)
+            for (var y = 0; y < this.tableData.length; y++)
             {
                 var row = this.tableData[y];
+                if (!row.length)
+                    continue;//ignore null tr
                 h.output += '<tr>';
                 for (var x = 0; x < row.length; x++)
                 {

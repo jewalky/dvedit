@@ -30,7 +30,7 @@ const PARSER_MODES = {
     // containers are complex modes that can contain many other modes
     // hr breaks the principle but they shouldn't be used in tables / lists
     // so they are put here
-    container: ['listblock', 'table', 'tablecell', 'quote', 'hr', 'paragraph'],
+    container: ['list', 'listblock', 'table', 'tablecell', 'quote', 'hr', 'paragraph'],
 
     // some mode are allowed inside the base mode only
     baseonly: ['header'],
